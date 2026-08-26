@@ -1,5 +1,5 @@
 # 🛡️ AI/NLP Engine to Detect Serious Injury & Fatality (SIF) Precursors
-### *Enterprise HSE Safety Intelligence, Counterfactual Risk Simulation & Causal Graph Platform*
+## SIH 2026 — PS 26165: Enterprise Safety Intelligence Backend MVP
 
 [![Smart India Hackathon 2026](https://img.shields.io/badge/SIH-2026_PS_26165-FF6F00?style=for-the-badge&logo=target&logoColor=white)](#)
 [![Node.js ES Modules](https://img.shields.io/badge/Node.js-v20+_ESM-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](#)
@@ -11,350 +11,589 @@
 
 ---
 
-## 📌 Executive Summary & Problem Statement
+## 1. Executive Summary & Problem Overview
 
-In heavy industrial environments (Oil & Gas, Offshore Drilling, Chemical Processing, Refineries, Power Grids, and Construction), **over 80% of fatalities occur in situations where low-severity incidents or near-misses shared the identical precursor hazards as fatal events**. Traditional HSE management systems merely record descriptive text without extracting actionable causal signals or identifying when critical safety barriers fail.
+In high-hazard industries (oil & gas, construction, manufacturing, chemical processing, mining), thousands of low-consequence or near-miss safety observations are reported annually. Traditional HSE systems treat these reports uniformly or rely on manual review, often missing **Serious Injury and Fatality (SIF) Precursors**—the specific high-energy hazards and failed/missing critical controls that, under slightly altered circumstances, would have resulted in a life-altering injury or fatality.
 
-This platform implements an **Explainable, Grounded, and Deterministic AI/NLP Engine** that:
-1. **Detects SIF Precursors** across 14 standardized industrial safety categories with high-energy hazard indicators.
-2. **Evaluates Safety Barrier Health** against the Hierarchy of Controls (Elimination ➔ Engineering ➔ Administrative ➔ PPE).
-3. **Maps Violations to Official IOGP Report 459 Life-Saving Rules**.
-4. **Calculates 100% Deterministic & Explainable Risk Scores** ($0 - 100$) with dominant factor attributions.
-5. **Constructs Multi-Dimensional Causal Graphs** to discover systemic high-risk failure pathways.
-6. **Simulates Counterfactual "What-If" Interventions** (e.g., barrier restoration vs. degradation).
-7. **Empowers Safety Officers with an Evidence-Grounded HSE Copilot** that strictly cites historical report IDs and official safety regulations.
-
----
-
-## 🏛️ System Architecture
+**PS 26165 Goal**: Build a complete, enterprise-grade, explainable AI/NLP Backend MVP that ingests unstructured multi-format reports (PDF, CSV, TXT, text), normalizes them, extracts safety entities, classifies SIF potential, detects precursors, maps to official IOGP Life-Saving Rules, calculates deterministic explainable risk scores, indexes vector embeddings in Pinecone, and powers three unified "WOW" capabilities:
+1. **SIF Precursor Causal Graph** (Interactive evidence-backed causal relationship network)
+2. **What-If Risk Simulator** (Deterministic barrier & control mitigation counterfactual engine)
+3. **Evidence-Grounded HSE Copilot** (Strictly grounded RAG assistant with anti-hallucination citations)
 
 ```mermaid
-flowchart TB
-    subgraph INGESTION["1. INGESTION & NORMALIZATION"]
-        PDF["📄 PDF Reports"] --> PARSER["Multi-Format Parser (PDF, CSV, TXT)"]
-        CSV["📊 CSV Datasets"] --> PARSER
-        TXT["📝 Direct Text"] --> PARSER
-        PARSER --> DEDUP["SHA-256 Content Deduplication"]
-        DEDUP --> NORM["Standard Schema Normalization"]
+flowchart TD
+    subgraph Ingestion ["Ingestion & Normalization Layer"]
+        A[Unstructured Reports: PDF / CSV / TXT / Text] --> B[Parser & Format Normalizer]
+        B --> C[Duplicate & Hash Detection]
+        C --> D[(MongoDB: Canonical Safety Reports)]
     end
 
-    subgraph NLP_PIPELINE["2. MULTI-STAGE AI & NLP EXTRACTION"]
-        NORM --> GEMINI["Google Gemini 1.5 Pro/Flash (Temp: 0.1)"]
-        GEMINI --> SIF_CLASS["Counterfactual SIF Potential Classifier"]
-        GEMINI --> PREC_TAX["14-Category Precursor Extractor"]
-        GEMINI --> BARRIER_DET["Barrier Health & Hierarchy Classifier"]
-        GEMINI --> LSR_MAP["IOGP 9 Life-Saving Rules Mapper"]
+    subgraph AI_Pipeline ["AI & NLP Intelligence Layer"]
+        D --> E[Async Analysis Pipeline]
+        E --> F[Gemini Semantic Extraction & NER]
+        F --> G[Zod Structured Output Validation]
+        G --> H[SIF Potential Classifier & Confidence]
+        G --> I[Precursor & Barrier Failure Detector]
+        G --> J[IOGP Life-Saving Rules Mapper]
     end
 
-    subgraph VECTOR_ENGINE["3. VECTOR INTELLIGENCE & RAG"]
-        NORM --> CHUNKER["Semantic Window Chunker"]
-        CHUNKER --> EMBED["768-Dim text-embedding-004 Engine"]
-        EMBED --> PINECONE[("🌲 Pinecone Vector DB")]
-        PINECONE --> RAG_BUILDER["Grounded RAG Context Assembler"]
+    subgraph Deterministic_Engine ["Deterministic Risk & Evidence Layer"]
+        H & I & J --> K[Deterministic Risk Scoring Engine]
+        K --> L[Evidence & Provenance Tracking Layer]
+        L --> M[Chunking & Embedding Generation]
+        M --> N[(Pinecone Vector DB)]
+        L --> O[(MongoDB: Structured Intelligence)]
     end
 
-    subgraph CORE_ENGINES["4. DETERMINISTIC ENGINES & GRAPH"]
-        SIF_CLASS & PREC_TAX & BARRIER_DET --> RISK_MATH["Deterministic Risk Engine (0-100)"]
-        RISK_MATH --> PATTERN_MINE["Multi-Dimensional Cluster Miner"]
-        PATTERN_MINE --> CAUSAL_GRAPH["🕸️ SIF Precursor Causal Graph Engine"]
-    end
-
-    subgraph WOW_FEATURES["5. THREE UNIFIED 'WOW' CAPABILITIES"]
-        CAUSAL_GRAPH --> WOW1["🕸️ WOW #1: Causal Graph & Pathway Miner"]
-        RISK_MATH --> WOW2["⚡ WOW #2: Counterfactual What-If Risk Simulator"]
-        RAG_BUILDER --> WOW3["🤖 WOW #3: Evidence-Grounded HSE Copilot (SSE)"]
-    end
-
-    subgraph GOVERNANCE["6. GOVERNANCE, ALERTS & AUDIT"]
-        RISK_MATH --> ALERTS["🚨 Smart HSE Alerts & Risk Prioritization"]
-        WOW1 & WOW2 & WOW3 --> DASHBOARD["📊 Executive KPI & Trend Dashboard"]
-        DASHBOARD --> HITL["🛡️ Human-in-the-Loop Review (v1 ➔ v2 Overrides)"]
-        HITL --> AUDIT[("📜 Immutable Audit Trail Log")]
+    subgraph Core_Applications ["Unified WOW Features & Analytics"]
+        O & N --> P[Semantic & Similar Incident Search]
+        O & N --> Q[Recurring Pattern Aggregator]
+        O & N --> R[WOW 1: SIF Precursor Causal Graph]
+        O & N --> S[WOW 2: What-If Risk Simulator]
+        O & N --> T[WOW 3: Evidence-Grounded HSE Copilot]
+        O --> U[Executive Dashboard & Smart Alerts]
+        O --> V[Human Review & Immutable Audit Trail]
     end
 ```
 
 ---
 
-## 🌟 The Three Unified "WOW" Features
+## 2. Clean Layered Architecture & Module Boundaries
 
-All three flagship capabilities share canonical MongoDB schema intelligence and Pinecone semantic vectors:
+The backend resides in `Backend/` using **100% ES Modules (`"type": "module"`)** and a strict layered architecture:
 
 ```
-                  ┌─────────────────────────────────────────┐
-                  │       CANONICAL SAFETY DATABASE         │
-                  │   MongoDB Reports + Pinecone Vectors    │
-                  └────────────────────┬────────────────────┘
-                                       │
-         ┌─────────────────────────────┼─────────────────────────────┐
-         ▼                             ▼                             ▼
-┌──────────────────┐         ┌──────────────────┐         ┌──────────────────┐
-│  🕸️ WOW #1       │         │  ⚡ WOW #2       │         │  🤖 WOW #3       │
-│  SIF Precursor   │         │  What-If Risk    │         │  Evidence-       │
-│  Causal Graph    │         │  Simulator       │         │  Grounded Copilot│
-│                  │         │                  │         │                  │
-│ • Causal Paths   │         │ • Barrier Restore│         │ • Strict [Report]│
-│ • Cytoscape.js   │         │ • Delta Scoring  │         │   & [IOGP] Cites │
-│ • High-Risk Loop │         │ • Side-by-Side   │         │ • SSE Streaming  │
-└──────────────────┘         └──────────────────┘         └──────────────────┘
+Backend/
+├── package.json                         # Scripts, dependencies, type: module
+├── README.md                            # Comprehensive technical documentation
+├── .env.example                         # Environment configuration template
+├── .gitignore                           # Git ignore rules
+├── Dockerfile                           # Production container definition
+├── vitest.config.js                     # Vitest test runner configuration
+│
+├── src/
+│   ├── server.js                        # HTTP Server bootstrap & graceful shutdown
+│   ├── app.js                           # Express application & middleware assembly
+│   │
+│   ├── config/
+│   │   ├── env.js                       # Zod-validated environment config
+│   │   ├── database.js                  # Mongoose connection & pool tuning
+│   │   ├── ai.js                        # Google Gemini Client configuration
+│   │   └── vector.js                    # Pinecone Index client & namespace config
+│   │
+│   ├── constants/
+│   │   ├── report.constants.js          # Report types (UA, UC, NEAR_MISS, INCIDENT)
+│   │   ├── sif.constants.js             # SIF_POTENTIAL, NON_SIF, NEEDS_REVIEW
+│   │   ├── precursor.constants.js       # Precursor Taxonomy (14 standard categories)
+│   │   ├── severity.constants.js        # Severity scales & actual vs potential outcomes
+│   │   ├── priority.constants.js        # CRITICAL, HIGH, MEDIUM, LOW priority definitions
+│   │   ├── review.constants.js          # Human review action enums & status
+│   │   └── lifeSavingRules.constants.js # IOGP Official Life-Saving Rules reference
+│   │
+│   ├── models/
+│   │   ├── User.js                      # Authentication & RBAC (Admin, HSE Officer, Reviewer)
+│   │   ├── SafetyReport.js              # Canonical raw & normalized report record
+│   │   ├── Analysis.js                  # Versioned AI NLP extraction & intelligence output
+│   │   ├── DocumentChunk.js             # Semantic text chunks for embeddings & Pinecone
+│   │   ├── LifeSavingRule.js            # Official IOGP rule knowledge base
+│   │   ├── Pattern.js                   # Recurring multidimensional pattern clusters
+│   │   ├── CausalGraph.js               # SIF Precursor Causal Graph topology & high-risk pathways
+│   │   ├── Simulation.js                # Counterfactual What-If risk simulation snapshots
+│   │   ├── CopilotSession.js            # Evidence-grounded multi-turn conversational memory
+│   │   ├── Alert.js                     # Smart prioritised safety alerts & deduplication
+│   │   └── AuditTrail.js                # Immutable audit trail of all AI & human actions
+│   │
+│   ├── controllers/
+│   │   ├── auth.controller.js           # Registration, login, profile queries
+│   │   ├── report.controller.js         # Report CRUD, file ingestion
+│   │   ├── analysis.controller.js       # Asynchronous & synchronous analysis triggers
+│   │   ├── precursor.controller.js      # 14-Category precursor definitions & analytics
+│   │   ├── lifeSavingRule.controller.js # Official IOGP rule queries
+│   │   ├── search.controller.js         # Semantic search & similar incident retrieval
+│   │   ├── pattern.controller.js        # Multidimensional recurring pattern miner
+│   │   ├── graph.controller.js          # Causal graph node & edge generator (WOW #1)
+│   │   ├── simulator.controller.js      # What-If counterfactual scenario engine (WOW #2)
+│   │   ├── copilot.controller.js        # Evidence-grounded conversational agent (WOW #3)
+│   │   ├── analytics.controller.js      # Executive dashboard KPIs & trend analytics
+│   │   ├── alert.controller.js          # Smart alert management & lifecycle
+│   │   ├── review.controller.js         # Human-in-the-loop review overrides & audit trail
+│   │   └── health.controller.js         # System health & connectivity checks
+│   │
+│   ├── routes/
+│   │   ├── auth.routes.js
+│   │   ├── report.routes.js
+│   │   ├── analysis.routes.js
+│   │   ├── precursor.routes.js
+│   │   ├── lifeSavingRule.routes.js
+│   │   ├── search.routes.js
+│   │   ├── pattern.routes.js
+│   │   ├── graph.routes.js
+│   │   ├── simulator.routes.js
+│   │   ├── copilot.routes.js
+│   │   ├── analytics.routes.js
+│   │   ├── alert.routes.js
+│   │   └── health.routes.js
+│   │
+│   ├── middleware/
+│   │   ├── auth.middleware.js           # JWT authentication & extraction
+│   │   ├── role.middleware.js           # Role-based authorization (RBAC)
+│   │   ├── validation.middleware.js     # Generic Zod request schema validator
+│   │   ├── upload.middleware.js         # Multer configuration with MIME verification
+│   │   ├── rateLimiter.middleware.js    # Express rate limiting
+│   │   ├── errorHandler.middleware.js   # Centralized error handler & status mapping
+│   │   └── requestLogger.middleware.js  # Structured request/response logging
+│   │
+│   ├── validators/
+│   │   ├── auth.validator.js
+│   │   ├── report.validator.js
+│   │   ├── precursor.validator.js
+│   │   ├── sif.validator.js
+│   │   ├── simulation.validator.js
+│   │   └── review.validator.js
+│   │
+│   ├── services/
+│   │   ├── ingestion/
+│   │   │   ├── TextParser.js
+│   │   │   ├── PdfParser.js
+│   │   │   ├── CsvParser.js
+│   │   │   ├── NormalizationService.js
+│   │   │   └── DuplicateDetectionService.js
+│   │   ├── ai/
+│   │   │   └── GeminiService.js         # Core Gemini invocation with retry & JSON repair
+│   │   ├── nlp/
+│   │   │   ├── ExtractionService.js     # Entity, barrier & hazard extraction
+│   │   │   └── ChunkingService.js       # Sliding-window semantic chunking
+│   │   ├── sif/
+│   │   │   └── SifClassifierService.js  # SIF potential & confidence assessment
+│   │   ├── precursor/
+│   │   │   └── PrecursorService.js      # Precursor detection & barrier mapping
+│   │   ├── barrier/
+│   │   │   └── BarrierService.js        # Hierarchy of controls & barrier status
+│   │   ├── lifeSavingRules/
+│   │   │   └── LifeSavingRulesService.js# Deterministic IOGP mapping
+│   │   ├── risk/
+│   │   │   └── RiskScoringEngine.js     # Deterministic reproducible risk scoring
+│   │   ├── embeddings/
+│   │   │   └── EmbeddingService.js      # 768-dim text-embedding-004 + fallback vectorizer
+│   │   ├── vector/
+│   │   │   ├── PineconeService.js       # Pinecone CRUD & vector queries
+│   │   │   └── VectorSearchService.js   # Similarity & metadata-filtered search
+│   │   ├── rag/
+│   │   │   └── RagContextBuilder.js     # Grounded context compiler with citations
+│   │   ├── pattern/
+│   │   │   └── PatternDetectionService.js# Multi-factor cluster miner & trend analytics
+│   │   ├── graph/
+│   │   │   └── CausalGraphService.js    # Causal graph node & edge generator (WOW #1)
+│   │   ├── simulator/
+│   │   │   └── WhatIfSimulatorService.js# What-If counterfactual scenario engine (WOW #2)
+│   │   ├── copilot/
+│   │   │   └── HseCopilotService.js     # Evidence-grounded conversational agent (WOW #3)
+│   │   ├── analytics/
+│   │   │   └── AnalyticsService.js      # Executive dashboard KPIs & trend analytics
+│   │   ├── alerts/
+│   │   │   └── AlertService.js          # Deterministic priority engine & alert generator
+│   │   ├── notification/
+│   │   │   └── NotificationService.js   # Multi-channel alert dispatching
+│   │   └── review/
+│   │       └── ReviewService.js         # Human-in-the-loop review workflow
+│   │
+│   ├── prompts/
+│   │   ├── reportExtraction.prompt.js
+│   │   ├── sifClassification.prompt.js
+│   │   ├── precursorDetection.prompt.js
+│   │   └── copilot.prompt.js
+│   │
+│   └── utils/
+│       ├── logger.js                    # Structured Winston/Pino style logging
+│       ├── hash.js                      # SHA-256 content hashing & ID generator
+│       ├── apiResponse.js               # Standard { success, data, error } envelopes
+│       └── appError.js                  # Custom domain error class
+│
+├── scripts/
+│   └── seed/
+│       ├── seedIOGPRules.js             # Official IOGP Life-Saving Rules dataset
+│       └── masterSeed.js                # Master seed: Users, 9 IOGP Rules, 25+ Incidents
+│
+└── tests/
+    ├── fixtures/
+    │   ├── sample_reports.json
+    │   └── sif_cases.json
+    ├── unit/                            # Unit tests for all scoring & parsing algorithms
+    └── integration/                     # Supertest API tests for all endpoints
 ```
 
-### 🕸️ WOW #1: SIF Precursor Causal Graph & High-Risk Pathway Discovery
-- **Heterogeneous Graph Topology**: Constructs connected nodes across `PRECURSOR`, `BARRIER`, `ENERGY_SOURCE`, `UNSAFE_ACT`, `LIFE_SAVING_RULE`, `CONSEQUENCE`, and `EVENT`.
-- **Weighted Directed Edges**: Quantifies relationship transitions (`CAUSES`, `FAILS`, `VIOLATES`, `LEADS_TO`, `ASSOCIATED_WITH`).
-- **High-Risk Pathway Mining**: Discovers and ranks dangerous multi-hop failure sequences ($Cause \rightarrow Precursor \rightarrow Failed\ Barrier \rightarrow Consequence$).
-- **Cytoscape & D3 Payload**: Native JSON graph export ready for direct interactive canvas rendering.
+---
 
-### ⚡ WOW #2: Counterfactual What-If Risk Simulator
-- **Multi-Variable Parameter Adjustments**: Test operational hypotheses before executing hazardous tasks.
-  - *Restore critical barriers* (e.g., LOTO status $\rightarrow$ `PRESENT_EFFECTIVE`).
-  - *Degrade/Remove barriers* (e.g., simulate harness failure at 12m height).
-  - *Eliminate energy sources* (e.g., de-energize 440V panel before maintenance).
-- **Delta Scoring & Mitigation Efficacy**: Mathematically computes exact point changes ($\Delta Score$) and mitigation percentages ($Mitigation\ Efficacy = \frac{|\Delta Score|}{Baseline} \times 100\%$).
-- **Multi-Scenario Comparison Matrix**: Compare Scenario A vs. Scenario B vs. Baseline side-by-side.
+## 3. MongoDB vs Pinecone Responsibility & Data Division
 
-### 🤖 WOW #3: Evidence-Grounded HSE Copilot
-- **100% Grounded Conversations**: Solves the AI hallucination problem in safety-critical operations.
-- **Mandatory Bracket Citations**: Automatically extracts, verifies, and hyperlinks citations:
-  - Incident references: `[Report ID: INC-2026-001]`
-  - Life-Saving Rules: `[IOGP Rule: Energy Isolation]`
-- **Multi-Turn Session Memory**: Preserves context across investigation turns with suggested follow-ups.
-- **Real-Time Token Streaming**: Server-Sent Events (SSE) at `/api/copilot/chat/stream` for sub-50ms conversational feedback.
+### 3.1 Division of Responsibility
+- **MongoDB (Canonical Source of Truth)**: Holds all business entities, user accounts, raw files, normalized reports, full AI extractions, deterministic risk calculations, versioned analyses, human review overrides, and immutable audit trails. The system is 100% functional for core reporting even if Pinecone is offline.
+- **Pinecone (Vector Retrieval & Similarity Engine)**: Indexes document chunk embeddings along with rich structured metadata for semantic search, similar incident clustering, and grounded RAG context retrieval.
+
+### 3.2 Canonical Data Entities
+- **SafetyReport**: Canonical storage of ingested reports, original raw content, normalized metadata (site, activity, event date), SHA-256 deduplication hashes, ingestion status, and review state.
+- **Analysis**: Versioned safety intelligence output containing extracted hazards, energy sources, safety barriers with hierarchy classifications, SIF potential determinations with confidence ratings, precursor classifications, IOGP rule mappings, deterministic risk scores ($0-100$), and human review flags.
+- **DocumentChunk**: Paragraph and sliding-window semantic text chunks linked to parent reports, token counts, metadata tags, and vector index sync states.
+- **LifeSavingRule**: Official IOGP Report 459 rule definitions, mandatory control requirements, and precursor mappings.
+- **Pattern**: Multi-dimensional recurring failure clusters across site, activity, precursor, and failed barrier dimensions.
+- **CausalGraph**: Heterogeneous graph snapshots containing connected nodes, weighted relationship edges, and ranked high-risk failure pathways.
+- **Simulation**: Counterfactual What-If scenario comparisons capturing baseline vs. simulated states, $\Delta\text{Score}$ differences, and mitigation efficacy percentages.
+- **CopilotSession**: Multi-turn conversational memory, user queries, assistant responses, and verified bracket citations.
+- **Alert**: Smart prioritised safety alerts triggered by critical SIF emergence or multiple precursor convergence with 24-hour suppression deduplication.
+- **AuditTrail**: Immutable audit logs capturing all AI analysis completions, human review approvals, and versioned overrides with mandatory justifications.
 
 ---
 
-## 🔬 Deterministic Risk Scoring Formula
+## 4. AI / NLP Pipeline & Evidence Provenance Architecture
 
-Unlike black-box models, this engine calculates 100% reproducible, mathematically explainable risk scores ($0 - 100$):
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant ReportCtrl as ReportController
+    participant ExtractionSvc as ExtractionService
+    participant Gemini as GeminiService
+    participant Zod as ZodValidator
+    participant DetEng as DeterministicRiskEngine
+    participant ChunkSvc as Chunking & Embedding
+    participant Pinecone as PineconeService
+    participant MongoDB as MongoDB
 
-$$\text{Risk Score} = \min\left(100, \max\left(0, \text{Base} + S_{\text{SIF}} + P_{\text{Precursors}} + E_{\text{Energy}} + B_{\text{Barrier Penalty}} - B_{\text{Barrier Credit}}\right)\right)$$
+    Client->>ReportCtrl: POST /api/reports (Raw Report)
+    ReportCtrl->>MongoDB: Save SafetyReport (status: INGESTED)
+    ReportCtrl-->>Client: 201 Created { reportId, status: "INGESTED" }
 
-| Component | Calculation Logic | Range |
-| :--- | :--- | :---: |
-| **Base Score** | Derived from actual injury severity & property damage ratings | $0 - 30$ |
-| **SIF Potential Weight** ($S_{\text{SIF}}$) | $+40$ points if high-energy precursor + barrier failure detected | $0 \text{ or } 40$ |
-| **Precursor Weight** ($P_{\text{Precursors}}$) | $\sum (\text{Severity Weight} \times \text{Confidence})$ for up to 3 precursors | $0 - 30$ |
-| **Energy Source** ($E_{\text{Energy}}$) | Uncontrolled high-energy source adds $+20$; controlled adds $+5$ | $0 - 20$ |
-| **Barrier Penalty** | $+15$ for each `FAILED` or `MISSING` engineered/administrative control | $+0 \text{ to } +45$ |
-| **Barrier Credit** | $-10$ for each verified `PRESENT_EFFECTIVE` barrier | $-0 \text{ to } -30$ |
+    Client->>ReportCtrl: POST /api/reports/:id/analyze
+    ReportCtrl->>ExtractionSvc: Process Report Extraction
+    ExtractionSvc->>Gemini: Request Structured NER & Barrier Extraction
+    Gemini-->>ExtractionSvc: Raw JSON Response
+    ExtractionSvc->>Zod: Validate Extraction against ZodSchema
+    Zod-->>ExtractionSvc: Validated Extraction Object
+    
+    ExtractionSvc->>Gemini: Classify SIF Potential & Precursors with Evidence Text
+    Gemini-->>ExtractionSvc: Raw JSON Response
+    ExtractionSvc->>Zod: Validate Classification against SifSchema
+    Zod-->>ExtractionSvc: Validated Classification Object
 
----
+    ExtractionSvc->>DetEng: Compute Deterministic Risk Score (0-100)
+    DetEng-->>ExtractionSvc: Deterministic Score (e.g., 84, HIGH)
 
-## 📋 14-Category Precursor Taxonomy & IOGP Life-Saving Rules
+    ExtractionSvc->>MongoDB: Save Versioned Analysis Record
+    ExtractionSvc->>ChunkSvc: Create Document Chunks & Generate Embeddings
+    ChunkSvc->>Pinecone: Upsert 768-Dim Vectors with Rich Metadata Filter Tags
+    Pinecone-->>ChunkSvc: Upsert OK
+    ExtractionSvc->>MongoDB: Update SafetyReport status: "ANALYZED", vectorStatus: "COMPLETED"
+    ExtractionSvc-->>ReportCtrl: Complete Analysis Intelligence
+    ReportCtrl-->>Client: 200 OK { report, analysis }
+```
 
-### 14 Industrial SIF Precursor Categories
-1. `ENERGY_EXPOSURE` — Uncontrolled thermal, pneumatic, or mechanical energy release
-2. `LINE_OF_FIRE` — Positioning in the path of moving machinery, cables, or falling objects
-3. `WORKING_AT_HEIGHT` — Work at $\ge 2\text{m}$ height with fall potential
-4. `CONFINED_SPACE` — Enclosed vessels with restricted egress or toxic/asphyxiant atmospheres
-5. `ISOLATION_FAILURE` — Inadequate, omitted, or unverified LOTO isolation
-6. `VEHICLE_INTERACTION` — Pedestrians near heavy mobile plant, forklifts, or road transport
-7. `LIFTING_OPERATIONS` — Crane, hoist, or rigging failure over personnel or equipment
-8. `DROPPED_OBJECTS` — Falling tools, structural components, or materials from height
-9. `HOT_WORK` — Grinding, welding, or spark ignition in flammable/explosive atmospheres
-10. `EXCAVATION` — Trenching $>1.2\text{m}$ deep with cave-in or utility strike hazards
-11. `ELECTRICAL_EXPOSURE` — Live conductors, arc flash boundaries, and high-voltage panels
-12. `PRESSURE_RELEASE` — High-pressure steam, gas, hydraulic lines, or vessel blowouts
-13. `CHEMICAL_EXPOSURE` — Acute contact with $\text{H}_2\text{S}$, chlorine, acids, or toxic gases
-14. `FIRE_EXPLOSION_POTENTIAL` — Loss of hydrocarbon containment with ignition proximity
-
-### 9 Official IOGP Report 459 Life-Saving Rules
-- `IOGP-LSR-01`: **Bypassing Safety Controls** (*Obtain authorization before overriding safety devices*)
-- `IOGP-LSR-02`: **Confined Space** (*Verify atmospheric testing & obtain entry permit*)
-- `IOGP-LSR-03`: **Driving** (*Wear seatbelt, adhere to speed limits, eliminate mobile distractions*)
-- `IOGP-LSR-04`: **Energy Isolation** (*Verify zero energy state and positive mechanical isolation*)
-- `IOGP-LSR-05`: **Hot Work** (*Clear flammables, monitor combustible atmosphere, maintain fire watch*)
-- `IOGP-LSR-06`: **Line of Fire** (*Position body clear of moving loads, tensioned lines, and pinch points*)
-- `IOGP-LSR-07`: **Safe Mechanical Lifting** (*Plan lifts, establish exclusion zones, never walk under loads*)
-- `IOGP-LSR-08`: **Work Authorization** (*Confirm valid Permit-to-Work before job execution*)
-- `IOGP-LSR-09`: **Working at Height** (*Use 100% fall protection tie-off with certified anchorages*)
-
----
-
-## 🚀 Complete API Catalog
-
-All endpoints require JWT Bearer Authentication (`Authorization: Bearer <token>`) except `/health` and auth endpoints.
-
-### 🔐 Authentication & RBAC (`/api/auth`)
-| Method | Endpoint | Description | Roles Allowed |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Register new user account | Public |
-| `POST` | `/api/auth/login` | Authenticate user & receive JWT token | Public |
-| `GET` | `/api/auth/me` | Retrieve active authenticated profile | All Roles |
-
-### 📄 Incident Report Ingestion (`/api/reports`)
-| Method | Endpoint | Description | Roles Allowed |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/reports` | Ingest manual structured/plain text report | All Roles |
-| `POST` | `/api/reports/upload` | Multipart file upload (`.pdf`, `.csv`, `.txt`) | All Roles |
-| `GET` | `/api/reports` | Query safety reports with filters & pagination | All Roles |
-| `GET` | `/api/reports/:id` | Get report summary by ID | All Roles |
-| `GET` | `/api/reports/:id/detail` | **Unified 360° Detail Payload** (Analysis, Audit, Alerts) | All Roles |
-| `POST` | `/api/reports/:id/review` | **Human-in-the-Loop Review** (`APPROVE`, `REJECT`, `OVERRIDE`) | `ADMIN`, `HSE_OFFICER`, `REVIEWER` |
-| `GET` | `/api/reports/:id/audit-trail`| Chronological audit log for incident | All Roles |
-| `GET` | `/api/reports/:id/similar` | Retrieve vector-similar historical incidents | All Roles |
-| `POST` | `/api/reports/:id/analyze` | Trigger async/sync NLP analysis | `ADMIN`, `HSE_OFFICER` |
-| `POST` | `/api/reports/:id/reanalyze`| Force re-analysis with version increment | `ADMIN`, `HSE_OFFICER` |
-
-### 🕸️ SIF Precursor Causal Graph — WOW #1 (`/api/graph`)
-| Method | Endpoint | Description | Roles Allowed |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/graph` | Full enterprise causal graph (Cytoscape payload) | All Roles |
-| `GET` | `/api/graph/pathways` | Ranked list of high-risk failure causal chains | All Roles |
-| `GET` | `/api/graph/precursor/:type`| Causal subgraph centered on precursor | All Roles |
-| `GET` | `/api/graph/report/:id` | Incident-specific causal graph | All Roles |
-
-### ⚡ What-If Risk Simulator — WOW #2 (`/api/simulator`)
-| Method | Endpoint | Description | Roles Allowed |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/simulator/simulate` | Run counterfactual simulation & delta calculation | All Roles |
-| `GET` | `/api/simulator` | Retrieve past simulation history snapshots | All Roles |
-| `GET` | `/api/simulator/:id` | Retrieve detailed simulation comparison state | All Roles |
-| `POST` | `/api/simulator/compare` | Multi-scenario side-by-side comparison matrix | All Roles |
-
-### 🤖 Evidence-Grounded HSE Copilot — WOW #3 (`/api/copilot`)
-| Method | Endpoint | Description | Roles Allowed |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/copilot/chat` | Multi-turn grounded chat with citations & follow-ups | All Roles |
-| `POST` | `/api/copilot/chat/stream`| Real-time Server-Sent Events (SSE) token stream | All Roles |
-| `POST` | `/api/copilot/sessions` | Create scoped investigation session | All Roles |
-| `GET` | `/api/copilot/sessions` | List user conversation sessions | All Roles |
-| `GET` | `/api/copilot/sessions/:id`| Retrieve session history & verified citations | All Roles |
-
-### 📊 Executive Dashboard & Analytics (`/api/analytics`)
-| Method | Endpoint | Description | Roles Allowed |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/analytics/dashboard`| **Unified Executive Dashboard Payload** | All Roles |
-| `GET` | `/api/analytics/kpis` | High-level KPI summary cards | All Roles |
-| `GET` | `/api/analytics/by-site` | SIF rate and risk distribution by facility | All Roles |
-| `GET` | `/api/analytics/by-precursor`| Occurrence count & SIF rate by precursor | All Roles |
-| `GET` | `/api/analytics/trends` | Time-series monthly incident & SIF influx | All Roles |
-| `GET` | `/api/analytics/barriers` | Barrier resilience score & top failing barriers | All Roles |
-
-### 🚨 Smart HSE Alerts (`/api/alerts`)
-| Method | Endpoint | Description | Roles Allowed |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/alerts` | List active alerts with priority & site filters | All Roles |
-| `GET` | `/api/alerts/stats` | Summary statistics of open P1/P2 alerts | All Roles |
-| `PATCH`| `/api/alerts/:id/acknowledge`| Acknowledge safety alert | `ADMIN`, `HSE_OFFICER`, `REVIEWER` |
-| `PATCH`| `/api/alerts/:id/resolve` | Resolve alert with mandatory resolution notes | `ADMIN`, `HSE_OFFICER` |
+### 4.1 Strict Distinction: Model Confidence vs Scenario Risk Score
+- **Model Confidence (0.0 to 1.0 / 0% to 100%)**: Indicates the LLM's certainty that a report matches the definition of a SIF Precursor or SIF Potential event based on textual evidence.
+- **Scenario Risk Score (0 to 100)**: Calculated by our deterministic algorithmic scoring engine based on:
+  1. Base Hazard Weight (e.g., High Voltage: +30, Fall > 2m: +30)
+  2. Failed/Missing Critical Barriers (+15 to +25 each)
+  3. Precursor Multiplier (1.2x for active Line-of-Fire / Energy exposure)
+  4. Mitigating Controls Present (-10 to -20)
+  *Gemini NEVER fabricates or computes this final risk score.*
 
 ---
 
-## 👥 Role-Based Access Control (RBAC)
+## 5. Pinecone Vector DB & RAG Architecture
 
-| Role | Ingest Reports | View Analytics & Graphs | Run What-If Simulations | Query Copilot | Approve / Override | Resolve Alerts | Admin System |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`ADMIN`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **`HSE_OFFICER`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **`REVIEWER`** | ✅ | ✅ | ✅ | ✅ | ✅ (Review) | ❌ (Ack Only) | ❌ |
-| **`VIEWER`** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+### 5.1 Pinecone Index Specification
+- **Index Name**: `safety-reports-v1`
+- **Dimension**: `768` (dense vectors generated by Google `text-embedding-004` or semantic n-gram vectorizer)
+- **Metric**: `cosine`
+- **Namespace**: `safety-reports-v1`
+
+### 5.2 Metadata Payload on Vectors
+```json
+{
+  "reportId": "INC-2026-001",
+  "chunkId": "chunk_INC-2026-001_01",
+  "site": "Offshore Platform Alpha",
+  "activity": "Scaffold Maintenance",
+  "precursors": ["WORKING_AT_HEIGHT", "DROPPED_OBJECTS"],
+  "sifStatus": "SIF_POTENTIAL",
+  "severity": "CRITICAL",
+  "riskScore": 84,
+  "date": 1768348800000,
+  "textSnippet": "Technician unhooked harness lanyard at 9m elevation without secondary tie-off..."
+}
+```
+
+### 5.3 Semantic Search & Hybrid Retrieval Pipeline
+```mermaid
+flowchart LR
+    Q[User Query / Incident Text] --> E[Embedding Service]
+    E --> VQ[Query Vector: 768d]
+    VQ --> P[Pinecone Vector Query + Metadata Filters]
+    P --> Hits[Top-K Chunk Matches & Cosine Scores]
+    Hits --> M[MongoDB Canonical Hydration]
+    M --> Out[Enriched Incidents with Evidence Citations]
+```
 
 ---
 
-## 🛠️ Tech Stack
+## 6. Three Flagship "WOW" Architectural Features
 
-- **Runtime**: Node.js v20+ (100% Native JavaScript ES Modules, `"type": "module"`)
-- **Web Framework**: Express 4 (Strict RESTful routing, rate limiting, request logging)
-- **Primary Database**: MongoDB & Mongoose 8 (Canonical reports, analyses, alerts, audit trails)
-- **Vector Database**: Pinecone Index (768-dimensional normalized dense vectors)
-- **Generative AI**: Google Gemini 1.5 Pro / Flash (`@google/generative-ai`)
-- **Embedding Model**: Google `text-embedding-004` (with semantic n-gram fallback vectorizer)
-- **Validation**: Zod 3 (Strict runtime schema enforcement on all payloads)
-- **File Parsers**: `pdf-parse` (PDF extraction), `csv-parse` (batch CSV), `multer` (multipart upload)
-- **Testing Engine**: Vitest 3 + Supertest (172 unit & integration tests)
+```mermaid
+graph TD
+    subgraph Data_Layer ["Shared Canonical Safety Intelligence"]
+        R[Safety Reports] --> A[Analyses & Precursors]
+        A --> B[Barrier Failures]
+        A --> E[Evidence Layer]
+    end
+
+    subgraph WOW_1 ["WOW #1: SIF Precursor Causal Graph"]
+        A & B --> G1[Activity Node]
+        G1 --> G2[Hazard Node]
+        G2 --> G3[Barrier Failure Edge]
+        G3 --> G4[Precursor Node]
+        G4 --> G5[SIF Potential Node]
+    end
+
+    subgraph WOW_2 ["WOW #2: What-If Risk Simulator"]
+        A & B --> S1[Baseline Incident State: Score 84]
+        S2[User Toggles Added/Restored Controls] --> S3[Deterministic Counterfactual Engine]
+        S1 & S3 --> S4[Simulated Outcome: Score 28, Delta -56]
+    end
+
+    subgraph WOW_3 ["WOW #3: Evidence-Grounded HSE Copilot"]
+        UserQ[HSE Query] --> RAG[Pinecone Vector Retrieval + MongoDB Stats]
+        RAG --> Context[Strict Grounded Context Builder]
+        Context --> LLM[Gemini Structured Copilot]
+        LLM --> CitedAns[Answer + Exact Report & LSR Citations]
+    end
+```
+
+### 6.1 WOW #1: SIF Precursor Causal Graph Engine
+- **Endpoints**: `GET /api/graph`, `GET /api/graph/pathways`, `GET /api/graph/precursor/:type`
+- **Node Types**: `ACTIVITY`, `ENERGY_SOURCE`, `UNSAFE_ACT`, `PRECURSOR`, `BARRIER`, `LIFE_SAVING_RULE`, `CONSEQUENCE`, `EVENT`
+- **Edge Types**: `CAUSES`, `FAILS`, `VIOLATES`, `LEADS_TO`, `ASSOCIATED_WITH`
+- **Data Integrity**: Every edge contains `weight` (co-occurrence frequency), transition probabilities, and supporting incident IDs.
+- **Cytoscape & D3 Payload**: Formats full graph structures directly into `{ nodes: [...], edges: [...] }` visualization elements.
+
+### 6.2 WOW #2: What-If Risk Simulator (Scenario Counterfactual Engine)
+- **Endpoints**: `POST /api/simulator/simulate`, `POST /api/simulator/compare`, `GET /api/simulator`
+- **Mechanism**:
+  1. Ingests a baseline incident or custom scenario (e.g. Risk Score: 84, Dominant Factor: "Isolation Failure")
+  2. Accepts modified barrier statuses (`PRESENT_EFFECTIVE`, `DEGRADED`, `FAILED`, `MISSING`), precursor adjustments, and energy control actions.
+  3. Re-evaluates risk through deterministic mathematical scoring:
+     $$\text{Score}_{\text{simulated}} = \max\left(0, \min\left(100, \text{Base} + S_{\text{SIF}} + P_{\text{Precursors}} + E_{\text{Energy}} + B_{\text{Barrier Penalty}} - B_{\text{Barrier Credit}}\right)\right)$$
+  4. Returns `baseline`, `simulated`, `delta` ($\Delta\text{Score}$), `mitigationEfficacy` ($\%$), and an explainable technical narrative.
+
+### 6.3 WOW #3: Evidence-Grounded HSE Copilot
+- **Endpoints**: `POST /api/copilot/chat`, `POST /api/copilot/chat/stream`, `POST /api/copilot/sessions`
+- **Anti-Hallucination Protocol**:
+  1. Retrieves top-4 most relevant incident chunks from Pinecone vector index.
+  2. Injects verified canonical facts and IOGP Life-Saving Rules into strict low-temperature prompt.
+  3. Enforces bracket notation citations: `[Report ID: INC-2026-001]` and `[IOGP Rule: Energy Isolation]`.
+  4. Automatically extracts and validates citations in structured response metadata.
+  5. Supports real-time token streaming via Server-Sent Events (SSE) for responsive conversational UX.
 
 ---
 
-## ⚡ Quickstart & Installation
+## 7. Complete REST API Specification
 
-### 1. Prerequisites
-- Node.js $\ge 20.0.0$
-- MongoDB $\ge 6.0$ (local daemon or MongoDB Atlas URI)
-- *(Optional)* Google Gemini API Key & Pinecone API Key *(Engine operates automatically with resilient deterministic fallbacks if keys are omitted)*.
+| HTTP Method | Route | Description | Auth Required | Roles Allowed |
+|:---|:---|:---|:---:|:---|
+| **Auth** | | | | |
+| `POST` | `/api/auth/register` | Register new user account | Public | Public |
+| `POST` | `/api/auth/login` | Authenticate user & receive JWT token | Public | Public |
+| `GET` | `/api/auth/me` | Retrieve active authenticated profile | Bearer Token | All Roles |
+| **Reports** | | | | |
+| `POST` | `/api/reports` | Ingest manual structured/plain text report | Bearer Token | All Roles |
+| `POST` | `/api/reports/upload` | Multipart file upload (`.pdf`, `.csv`, `.txt`) | Bearer Token | All Roles |
+| `GET` | `/api/reports` | Query safety reports with filters & pagination | Bearer Token | All Roles |
+| `GET` | `/api/reports/:id` | Get report summary by ID | Bearer Token | All Roles |
+| `GET` | `/api/reports/:id/detail` | **Unified 360° Detail Payload** (Analysis, Audit, Alerts) | Bearer Token | All Roles |
+| `POST` | `/api/reports/:id/review` | **Human-in-the-Loop Review** (`APPROVE`, `REJECT`, `OVERRIDE`)| Bearer Token | `ADMIN`, `HSE_OFFICER`, `REVIEWER` |
+| `GET` | `/api/reports/:id/audit-trail`| Chronological audit log for incident | Bearer Token | All Roles |
+| `DELETE`| `/api/reports/:id` | Delete safety report | Bearer Token | `ADMIN` |
+| **Analysis** | | | | |
+| `POST` | `/api/reports/:id/analyze` | Trigger async/sync NLP analysis | Bearer Token | `ADMIN`, `HSE_OFFICER` |
+| `POST` | `/api/reports/:id/reanalyze`| Force re-analysis with version increment | Bearer Token | `ADMIN`, `HSE_OFFICER` |
+| `GET` | `/api/analysis/:reportId` | Get versioned analysis intelligence | Bearer Token | All Roles |
+| `GET` | `/api/analysis/jobs/:jobId`| Get background analysis job state | Bearer Token | All Roles |
+| **Precursors & LSR** | | | | |
+| `GET` | `/api/precursors` | List all 14 precursor taxonomy definitions | Bearer Token | All Roles |
+| `GET` | `/api/precursors/:type` | Get precursor analytics and report counts | Bearer Token | All Roles |
+| `GET` | `/api/life-saving-rules` | Get official IOGP Life-Saving Rules KB | Bearer Token | All Roles |
+| `GET` | `/api/life-saving-rules/:id`| Get specific IOGP rule requirements | Bearer Token | All Roles |
+| **Vector & Similarity**| | | | |
+| `GET` | `/api/reports/:id/similar` | Find semantically similar incidents via Pinecone | Bearer Token | All Roles |
+| `POST` | `/api/search/semantic` | Free-text semantic incident search | Bearer Token | All Roles |
+| **Patterns & Graph** | | | | |
+| `GET` | `/api/patterns` | List recurring multi-factor incident clusters | Bearer Token | All Roles |
+| `POST` | `/api/patterns/detect` | Trigger manual multi-dimensional pattern mining | Bearer Token | `ADMIN`, `HSE_OFFICER` |
+| `GET` | `/api/patterns/:id` | Get pattern details and sample incidents | Bearer Token | All Roles |
+| `PATCH` | `/api/patterns/:id/status`| Update pattern status (`ACTIVE`, `MITIGATED`) | Bearer Token | `ADMIN`, `HSE_OFFICER` |
+| `GET` | `/api/graph` | WOW #1: Full SIF Precursor Causal Graph | Bearer Token | All Roles |
+| `GET` | `/api/graph/pathways` | WOW #1: Ranked high-risk failure pathways | Bearer Token | All Roles |
+| `GET` | `/api/graph/precursor/:type`| WOW #1: Precursor-specific subgraph | Bearer Token | All Roles |
+| `GET` | `/api/graph/report/:id` | WOW #1: Incident-specific causal graph | Bearer Token | All Roles |
+| **Simulator & Copilot**| | | | |
+| `POST` | `/api/simulator/simulate`| WOW #2: Counterfactual What-If risk simulation | Bearer Token | All Roles |
+| `GET` | `/api/simulator` | WOW #2: Simulation history snapshots | Bearer Token | All Roles |
+| `POST` | `/api/simulator/compare` | WOW #2: Multi-scenario comparison matrix | Bearer Token | All Roles |
+| `POST` | `/api/copilot/chat` | WOW #3: Evidence-Grounded HSE Copilot conversation | Bearer Token | All Roles |
+| `POST` | `/api/copilot/chat/stream`| WOW #3: Real-time Server-Sent Events (SSE) streaming | Bearer Token | All Roles |
+| `POST` | `/api/copilot/sessions` | WOW #3: Create scoped investigation session | Bearer Token | All Roles |
+| `GET` | `/api/copilot/sessions` | WOW #3: List user conversation sessions | Bearer Token | All Roles |
+| **Dashboard & Alerts** | | | | |
+| `GET` | `/api/analytics/dashboard`| Unified Executive Dashboard Payload | Bearer Token | All Roles |
+| `GET` | `/api/analytics/kpis` | High-level KPI summary cards | Bearer Token | All Roles |
+| `GET` | `/api/analytics/by-site` | SIF rate and risk distribution by facility | Bearer Token | All Roles |
+| `GET` | `/api/analytics/by-precursor`| Distribution of occurrences by precursor | Bearer Token | All Roles |
+| `GET` | `/api/analytics/trends` | Time-series monthly incident trends | Bearer Token | All Roles |
+| `GET` | `/api/analytics/barriers` | Barrier health resilience score & top failures | Bearer Token | All Roles |
+| `GET` | `/api/alerts` | List active safety alerts with filters | Bearer Token | All Roles |
+| `GET` | `/api/alerts/stats` | Summary statistics of open P1/P2 alerts | Bearer Token | All Roles |
+| `PATCH` | `/api/alerts/:id/acknowledge`| Acknowledge safety alert | Bearer Token | `ADMIN`, `HSE_OFFICER`, `REVIEWER` |
+| `PATCH` | `/api/alerts/:id/resolve`| Resolve alert with mandatory notes | Bearer Token | `ADMIN`, `HSE_OFFICER` |
+| `GET` | `/health` | Service health, DB & system readiness | Public | Public |
 
-### 2. Clone & Install Dependencies
+---
+
+## 8. Security Architecture & Safeguards
+
+1. **Authentication & Authorization**:
+   - Industry-standard JWT with expiration.
+   - Passwords hashed with `bcrypt` (salt rounds: 10).
+   - Role-Based Access Control (RBAC): `ADMIN`, `HSE_OFFICER`, `REVIEWER`, `VIEWER`.
+2. **File Upload Security**:
+   - Multi-stage validation: File extension whitelist (`.pdf`, `.csv`, `.txt`), MIME type verification, and file size limits (max 15MB).
+   - Memory buffer parsing with zero temporary file leakage.
+3. **Input Sanitization & Injection Prevention**:
+   - Strict Zod validation on every request body, query parameter, and route parameter.
+   - Mongoose parameterized queries prevent NoSQL injection.
+4. **Environment & Secrets**:
+   - Secrets managed via `.env` and validated at startup using Zod in `src/config/env.js`.
+   - Never committed to git; `.gitignore` strictly protects `.env`.
+5. **Centralized Error Handling**:
+   - No stack traces or internal implementation details leaked in production responses.
+   - Consistent error envelope format: `{ "success": false, "error": { "code": "ERROR_CODE", "message": "User-friendly message" } }`.
+
+---
+
+## 9. Dependencies & ES Modules Configuration
+
+```json
+{
+  "name": "sih-sif-precursor-engine-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "seed": "node scripts/seed/masterSeed.js",
+    "seed:rules": "node scripts/seed/seedIOGPRules.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "@pinecone-database/pinecone": "^5.0.2",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.6.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.10.1",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "supertest": "^7.0.0",
+    "vitest": "^3.0.6"
+  }
+}
+```
+
+---
+
+## 10. Environment Variables Specification (`.env.example`)
+
 ```bash
-cd Backend
-npm install
-```
-
-### 3. Environment Configuration
-Create `.env` file inside `Backend/`:
-```env
+# Server Configuration
 PORT=5000
 NODE_ENV=development
 APP_NAME=sih-sif-precursor-engine-backend
-
-# MongoDB Connection
-MONGODB_URI=mongodb://localhost:27017/sih_sif_precursor_db
-
-# Security & JWT
-JWT_SECRET=sih2026_hse_super_secret_jwt_key_987654321_secure
-JWT_EXPIRES_IN=7d
 CORS_ORIGIN=*
 
-# AI & Embeddings (Optional - deterministic fallbacks active if omitted)
+# MongoDB Configuration
+MONGODB_URI=mongodb://localhost:27017/sih_sif_precursor_db
+
+# JWT Authentication
+JWT_SECRET=sih2026_hse_super_secret_jwt_key_987654321_secure
+JWT_EXPIRES_IN=7d
+
+# Google Gemini API (Optional - deterministic fallbacks active if omitted)
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-1.5-flash
+
+# Pinecone Vector DB (Optional - in-memory vector store active if omitted)
 PINECONE_API_KEY=your_pinecone_api_key_here
 PINECONE_INDEX_NAME=safety-reports-v1
 PINECONE_ENVIRONMENT=us-east-1
-```
 
-### 4. Seed Database (25+ Realistic Industrial Incidents & 9 IOGP Rules)
-```bash
-npm run seed
-```
-*Seeds default users (`admin@safety.org`, `hse.officer@safety.org`), 9 IOGP rules, 25 multi-sector incident reports, vector embeddings, recurring patterns, and smart alerts.*
-
-### 5. Start Development Server
-```bash
-npm run dev
-# Server listening on http://localhost:5000
-```
-
-### 6. Run Complete Test Suite
-```bash
-npm test
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=100
 ```
 
 ---
 
-## 🧪 Test Suite Summary (100% Passing)
+## 11. Demonstration Data Strategy (25+ Realistic Incidents)
 
-```
- Test Files  37 passed (37)
-      Tests  172 passed (172)
-   Duration  3.58s
-```
+To ensure realistic, comprehensive evaluation across energy sectors, the master seed script populates **25+ high-fidelity safety reports**:
 
-All 37 test suites validate:
-- Multi-format ingestion (PDF, CSV, TXT) and SHA-256 deduplication.
-- Precursor detection (14 categories) & barrier resilience scoring.
-- IOGP Life-Saving Rules deterministic mapping.
-- 100% reproducible mathematical risk scoring.
-- Pinecone vector chunking, indexing, and semantic search.
-- SIF Precursor Causal Graph topology and high-risk pathway miner.
-- What-If risk simulator delta calculations.
-- Evidence-Grounded HSE Copilot bracket citation parsing and multi-turn memory.
-- Executive KPI analytics and smart HSE alert deduplication.
-- Human-in-the-loop review overrides (`v1` ➔ `v2`) and audit trail logging.
-- Complete 12-step end-to-end integration pipeline.
+| Scenario Domain | Typical Incident Narrative | Key Precursor | Failed Barrier | LSR Violated | Expected SIF Potential |
+|:---|:---|:---|:---|:---|:---:|
+| **Working at Height** | Scaffolder working on 4th tier (8.2m) unhooked harness to reach valve; plank shifted. | `WORKING_AT_HEIGHT` | 100% Tie-Off Rule, Self-Retracting Lifeline | Working at Height | `SIF_POTENTIAL` (High) |
+| **Energy Isolation** | Electrician opened 440V MCC panel without LOTO or zero-energy multi-meter test. | `ELECTRICAL_EXPOSURE`, `ISOLATION_FAILURE` | LOTO Procedure, Zero Energy Verification | Energy Isolation | `SIF_POTENTIAL` (Critical) |
+| **Line of Fire / Dropped Object** | 15kg steel rigging shackle slipped from technician's hands at 45m elevation, falling to drill deck. | `DROPPED_OBJECTS`, `LINE_OF_FIRE` | Tool Tethering, Barricaded Drop Zone | Line of Fire | `SIF_POTENTIAL` (High) |
+| **Confined Space** | Technician entered Nitrogen-purged Reactor R-302 without permit or gas testing (14% O2). | `CONFINED_SPACE`, `CHEMICAL_EXPOSURE` | Atmospheric Testing, Entry Permit, Attendant | Confined Space | `SIF_POTENTIAL` (Critical) |
+| **Pressure Release** | High-pressure hydraulic crane hose ruptured at 3,000 PSI, spraying mist near hot manifolds. | `PRESSURE_RELEASE` | Depressurization Bleed-off Procedure | Bypassing Safety Controls | `SIF_POTENTIAL` (High) |
+| **Toxic Gas Release** | Trapped pocket of H2S (120 ppm) released during desalter separator line breaking. | `CHEMICAL_EXPOSURE` | Atmospheric Testing, Breathing Apparatus | Work Authorization | `SIF_POTENTIAL` (Critical) |
+| **Low-Risk Observation** | Housekeeping issue: empty coffee spill on control desk cleaned immediately. | None | Housekeeping standard | None | `NON_SIF` (Low) |
+| **First Aid Near Miss** | Operator pinched finger while closing portable staircase toolbox; superficial cut. | None | Basic PPE | None | `NON_SIF` (Low) |
 
 ---
 
-## 👥 Default Demo Credentials
+## 12. Technical Risks, Mitigations & Safety Disclaimers
 
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| **Admin** | `admin@safety.org` | `AdminPassword123!` |
-| **HSE Officer** | `hse.officer@safety.org` | `OfficerPassword123!` |
-| **Reviewer** | `reviewer@safety.org` | `ReviewerPassword123!` |
-| **Viewer** | `viewer@safety.org` | `ViewerPassword123!` |
+### Technical Risks & Mitigations
+1. **LLM Rate Limiting or Outage**:
+   - *Mitigation*: Configurable exponential backoff retry mechanism (max 3 retries) and automatic deterministic fallback rules.
+2. **Pinecone Temporary Network Latency / Outage**:
+   - *Mitigation*: Built-in in-memory cosine similarity fallback ensuring full vector search and RAG function even in offline or air-gapped environments.
+3. **LLM Hallucinations on Risk Metrics**:
+   - *Mitigation*: Strict architectural separation—Gemini handles unstructured text interpretation & entity extraction; deterministic mathematical scoring handles all risk scores, counts, percentages, and graph weights.
+4. **Token Limit Overflows in RAG Copilot**:
+   - *Mitigation*: `RagContextBuilder` implements dynamic token budgeting (top-4 most relevant chunks) and deduplicated canonical facts.
+
+### Safety Decision-Support Disclaimer
+> [!IMPORTANT]
+> **Safety Decision-Support Disclaimer**: This AI-assisted HSE system is designed strictly as an assistive intelligence and prioritization decision-support tool for qualified HSE professionals. It does not replace human judgment, official regulatory compliance checks, or physical workplace hazard assessments. Risk scores and What-If scenario simulations represent algorithmic heuristics rather than empirically validated mathematical fatality probabilities.
 
 ---
 
-## 📜 License & Acknowledgements
-- Developed for **Smart India Hackathon 2026** (Problem Statement: `PS 26165`).
-- Life-Saving Rules reference **IOGP Report 459** standards.
-- MIT License.
+## 13. System Quality & Verification Standards
+
+1. **File Structure Integrity**: All file paths valid, imports resolve correctly with explicit `.js` extensions.
+2. **100% ES Modules**: Zero instances of CommonJS (`require(`, `module.exports`, or `exports.`).
+3. **Import / Export Parity**: Named and default exports match exactly across services and controllers.
+4. **Zero Duplicate Declarations**: No duplicate routes, variables, or model registrations.
+5. **Clean Dependency Tree**: `npm install` runs cleanly, all packages present in `package.json`.
+6. **Strict Runtime Validation**: Zod schemas validate all inputs and LLM outputs.
+7. **Automated Test Coverage**: 172/172 tests passing across 37 test suites with 100% success rate.
+8. **Runtime Server Reliability**: Express starts cleanly on port 5000, `GET /health` returns 200 OK.
+9. **MongoDB Model Resilience**: Mongoose models compile cleanly with DB offline guards preventing timeouts.
+10. **Security & Secrets Governance**: Zero hardcoded API keys or secrets in source code.
