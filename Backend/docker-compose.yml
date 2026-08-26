@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  backend:
+    build: .
+    container_name: sih-sif-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongo:27017/sih_sif_intelligence
+      - JWT_SECRET=sih_2026_ps26165_super_secret_jwt_key_development_only_12345
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7.0
+    container_name: sih-sif-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:

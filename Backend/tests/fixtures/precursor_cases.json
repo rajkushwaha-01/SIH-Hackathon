@@ -1,0 +1,26 @@
+[
+  {
+    "id": "CASE-PREC-01",
+    "description": "Scaffolder working at 8m height dropped a 5kg scaffolding wrench which fell past workers on lower deck. Scaffolder was also unhooked.",
+    "expectedPrecursors": ["WORKING_AT_HEIGHT", "DROPPED_OBJECTS", "LINE_OF_FIRE"],
+    "expectedBarriers": ["100% Fall Arrest Harness", "Tool Tethering Lanyard"]
+  },
+  {
+    "id": "CASE-PREC-02",
+    "description": "Electrician accessed 440V motor control center without lockout tagout or voltage detector test.",
+    "expectedPrecursors": ["ELECTRICAL_EXPOSURE", "ISOLATION_FAILURE"],
+    "expectedBarriers": ["Lockout / Tagout (LOTO)"]
+  },
+  {
+    "id": "CASE-PREC-03",
+    "description": "Two workers entered nitrogen purged crude storage tank without air testing equipment or SCBA.",
+    "expectedPrecursors": ["CONFINED_SPACE", "CHEMICAL_EXPOSURE"],
+    "expectedBarriers": ["Atmospheric Multi-Gas Detector"]
+  },
+  {
+    "id": "CASE-PREC-04",
+    "description": "High pressure flange loosened while line was still pressurized at 40 bar resulting in hot steam escape.",
+    "expectedPrecursors": ["PRESSURE_RELEASE"],
+    "expectedBarriers": ["Bleed-off & Venting Procedure"]
+  }
+]

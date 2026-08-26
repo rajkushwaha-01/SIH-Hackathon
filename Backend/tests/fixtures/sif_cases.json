@@ -1,0 +1,42 @@
+[
+  {
+    "id": "CASE-SIF-01",
+    "domain": "Working at Height",
+    "description": "Scaffolder unhooked safety harness on 5th tier (7.5m height) to adjust ledger clamp. Foot slipped, but worker caught ledger tube with hands. No fall occurred.",
+    "expectedClassification": "SIF_POTENTIAL",
+    "expectedPrecursor": "WORKING_AT_HEIGHT",
+    "expectedFailedBarrier": "100% Fall Protection Tie-Off"
+  },
+  {
+    "id": "CASE-SIF-02",
+    "domain": "Energy Isolation",
+    "description": "Electrician opened 440V distribution switchboard without performing zero voltage verification check with calibrated multi-meter. Busbars were energized.",
+    "expectedClassification": "SIF_POTENTIAL",
+    "expectedPrecursor": "ENERGY_EXPOSURE",
+    "expectedFailedBarrier": "Zero Energy Verification (LOTO)"
+  },
+  {
+    "id": "CASE-SIF-03",
+    "domain": "Confined Space",
+    "description": "Two workers entered nitrogen purge vessel without continuous multi-gas monitor or entry permit sign-off. Standby man was absent.",
+    "expectedClassification": "SIF_POTENTIAL",
+    "expectedPrecursor": "CONFINED_SPACE",
+    "expectedFailedBarrier": "Atmospheric Gas Monitoring & Permit"
+  },
+  {
+    "id": "CASE-NON-SIF-01",
+    "domain": "Housekeeping",
+    "description": "Empty plastic water bottles observed scattered near the entrance of office container walkway. Housekeeping team notified to clean.",
+    "expectedClassification": "NON_SIF",
+    "expectedPrecursor": null,
+    "expectedFailedBarrier": null
+  },
+  {
+    "id": "CASE-NON-SIF-02",
+    "domain": "First Aid",
+    "description": "Technician received superficial 1cm scratch on knuckle while tightening small M6 screw with flathead screwdriver. First aid bandaid applied.",
+    "expectedClassification": "NON_SIF",
+    "expectedPrecursor": null,
+    "expectedFailedBarrier": null
+  }
+]
