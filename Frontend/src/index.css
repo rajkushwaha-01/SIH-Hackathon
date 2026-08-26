@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: #003d9b;
+    --primary-container: #0052cc;
+    --on-primary: #ffffff;
+    --surface: #faf8ff;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #f3f3fd;
+    --surface-container: #ededf8;
+    --surface-container-high: #e7e7f2;
+    --surface-container-highest: #e1e2ec;
+    --on-surface: #191b23;
+    --on-surface-variant: #434654;
+    --outline: #737685;
+    --outline-variant: #c3c6d6;
+    --error: #ba1a1a;
+  }
+
+  body {
+    @apply bg-background text-on-surface antialiased font-sans min-h-screen selection:bg-primary-fixed selection:text-primary-on-fixed;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Numeric Data Alignment */
+  .tnum, .numeric-data {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* AI Shimmer effect matching Stitch */
+.ai-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 82, 204, 0.08) 50%,
+    transparent 100%
+  );
+  animation: aiShimmer 3.5s infinite cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+@keyframes aiShimmer {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f3f3fd;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c3c6d6;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #737685;
+}
