@@ -94,47 +94,51 @@ export default function HseCopilotPage() {
         query: queryText.trim(),
       });
 
-      if (res && res.answer) {
+      // Extract content from backend response
+      const assistantText =
+        res?.data?.assistantMessage?.content ||
+        res?.assistantMessage?.content ||
+        res?.data?.answer ||
+        res?.answer ||
+        res?.data?.content ||
+        res?.content;
+
+      const citations =
+        res?.data?.citations ||
+        res?.citations ||
+        res?.data?.assistantMessage?.citations ||
+        res?.assistantMessage?.citations ||
+        [];
+
+      if (assistantText) {
         const aiMsg = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: res.answer,
-          citations: res.citations || res.evidence || [],
+          content: assistantText,
+          citations,
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, aiMsg]);
       } else {
-        throw new Error('Fallback response needed');
+        const errMsg = {
+          id: `err-${Date.now()}`,
+          role: 'assistant',
+          content: '⚠️ Unable to generate safety intelligence assessment. No response returned from the backend service.',
+          citations: [],
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
       }
     } catch (err) {
-      // High-quality grounded fallback synthesis
-      const aiMsg = {
-        id: `ai-${Date.now()}`,
+      console.error('Copilot live query error:', err);
+      const errMsg = {
+        id: `err-${Date.now()}`,
         role: 'assistant',
-        content: `### Executive Safety Intelligence Synthesis\n\nBased on cross-site incident telemetry and semantic indexing of **1,284 safety reports**, our AI engine has identified key correlation insights regarding: **"${queryText}"**:\n\n1. **Dominant SIF Precursor**: **Energy Isolation & LOTO Bypass** accounts for **32%** of confirmed SIF potential events.\n2. **Critical Hotspot**: **Offshore Platform Alpha (Gas Processing Sector 4)** exhibits an elevated SIF potential rate of **29%**, driven by ad-hoc maintenance during shift turnovers.\n3. **IOGP Life-Saving Rule Violation**: Directly correlates with **IOGP-LSR-04: Energy Isolation** (*"Verify isolation and zero energy before work begins"*).\n\n### Recommended Corrective Actions:\n* Mandate digital dual-signoff on zero-energy test readouts prior to releasing cold work permits.\n* Inspect and recalibrate automatic pressure relief bleed-off valves on all high-pressure pump skids.\n* Conduct immediate safety stand-down toolbox talks on secondary hydraulic energy hazards.`,
-        citations: [
-          {
-            reportId: 'INC-1021',
-            identifier: 'INC-1021',
-            title: 'Unverified Energy Isolation Bypass on Line 4',
-            textExcerpt: 'Worker approached equipment without secondary hydraulic energy isolation or zero pressure verification.',
-            similarity: 0.94,
-            site: 'Offshore Platform Alpha',
-            riskScore: 82,
-          },
-          {
-            reportId: 'INC-2026-002',
-            identifier: 'INC-2026-002',
-            title: '440V Motor Control Center Arc Flash Near Miss',
-            textExcerpt: 'Electrician opened 440V switchboard panel without applying LOTO or verifying zero electrical energy.',
-            similarity: 0.89,
-            site: 'Refinery Unit 4',
-            riskScore: 88,
-          },
-        ],
+        content: `⚠️ **HSE Copilot Error**: ${err?.response?.data?.message || err?.message || 'Failed to connect to safety intelligence Copilot engine.'}`,
+        citations: [],
         timestamp: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => [...prev, errMsg]);
     } finally {
       setLoading(false);
     }

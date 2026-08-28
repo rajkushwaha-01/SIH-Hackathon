@@ -210,10 +210,7 @@ export class ReportIngestionService {
    */
   static async getReportById(id) {
     if (mongoose.connection.readyState !== 1) {
-      return {
-        reportId: id,
-        normalizedReport: { title: `Mock Report ${id}`, site: "General Site" },
-      };
+      throw new AppError("Database is offline. Cannot retrieve report.", 503, "DATABASE_DISCONNECTED");
     }
 
     const isObjectId = id.match(/^[0-9a-fA-F]{24}$/);

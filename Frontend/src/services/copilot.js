@@ -1,29 +1,24 @@
 import apiClient from './api/client';
 
-export const copilotService = {
+const copilotService = {
   createSession: async (data = {}) => {
-    const res = await apiClient.post('/copilot/sessions', data);
-    return res.data;
+    return apiClient.post('/copilot/sessions', data);
   },
 
   getSessions: async () => {
-    const res = await apiClient.get('/copilot/sessions');
-    return res.data;
+    return apiClient.get('/copilot/sessions');
   },
 
   getSessionById: async (sessionId) => {
-    const res = await apiClient.get(`/copilot/sessions/${sessionId}`);
-    return res.data;
+    return apiClient.get(`/copilot/sessions/${sessionId}`);
   },
 
   deleteSession: async (sessionId) => {
-    const res = await apiClient.delete(`/copilot/sessions/${sessionId}`);
-    return res.data;
+    return apiClient.delete(`/copilot/sessions/${sessionId}`);
   },
 
   chat: async (payload) => {
-    const res = await apiClient.post('/copilot/chat', payload);
-    return res.data;
+    return apiClient.post('/copilot/chat', payload);
   },
 };
 

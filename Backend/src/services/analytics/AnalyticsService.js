@@ -2,18 +2,29 @@ import mongoose from "mongoose";
 import { SafetyReport } from "../../models/SafetyReport.js";
 import { Analysis } from "../../models/Analysis.js";
 import { Pattern } from "../../models/Pattern.js";
-import { PRECURSOR_TAXONOMY } from "../../constants/precursor.constants.js";
 import { BarrierService } from "../barrier/BarrierService.js";
+import { AppError } from "../../utils/appError.js";
 import { logger } from "../../utils/logger.js";
 
 export class AnalyticsService {
   /**
-   * Retrieve high-level KPI cards.
+   * Check if MongoDB is connected; throw meaningful error if offline (Rule 20: No Silent Fallback).
+   */
+  static verifyDbConnection() {
+    if (mongoose.connection.readyState !== 1) {
+      throw new AppError(
+        "Database is offline or disconnected. Cannot query real safety analytics.",
+        503,
+        "DATABASE_DISCONNECTED"
+      );
+    }
+  }
+
+  /**
+   * Retrieve high-level KPI cards computed dynamically from MongoDB.
    */
   static async getExecutiveKpis(filters = {}) {
-    if (mongoose.connection.readyState !== 1) {
-      return AnalyticsService.getMockKpis();
-    }
+    AnalyticsService.verifyDbConnection();
 
     const totalReports = await SafetyReport.countDocuments();
     const analyzedReports = await Analysis.countDocuments({ isLatest: true });
@@ -37,6 +48,16 @@ export class AnalyticsService {
 
     const sifRate = analyzedReports > 0 ? Math.round((sifPotentialCount / analyzedReports) * 100) : 0;
 
+    // Calculate dynamic barrier resilience from latest analyses
+    const latestAnalyses = await Analysis.find({ isLatest: true });
+    const allBarriers = [];
+    for (const a of latestAnalyses) {
+      if (a.nlpExtraction?.barriers) {
+        allBarriers.push(...a.nlpExtraction.barriers);
+      }
+    }
+    const resilience = BarrierService.calculateBarrierResilience(allBarriers);
+
     return {
       totalReports,
       analyzedReports,
@@ -45,25 +66,20 @@ export class AnalyticsService {
       criticalRiskCount,
       highRiskCount,
       activePatternsCount,
-      barrierHealthScore: 78,
+      barrierHealthScore: resilience.score || (analyzedReports > 0 ? 0 : 100),
     };
   }
 
   /**
-   * Retrieve breakdown by Site.
+   * Retrieve breakdown by Site computed dynamically from MongoDB.
    */
   static async getBreakdownBySite() {
-    if (mongoose.connection.readyState !== 1) {
-      return [
-        { site: "Offshore Platform Alpha", totalReports: 12, sifCount: 5, sifRate: 42, avgRiskScore: 72 },
-        { site: "Refinery Unit 4", totalReports: 8, sifCount: 2, sifRate: 25, avgRiskScore: 58 },
-        { site: "Chemical Terminal B", totalReports: 6, sifCount: 1, sifRate: 17, avgRiskScore: 46 },
-      ];
-    }
+    AnalyticsService.verifyDbConnection();
 
     const analyses = await Analysis.find({ isLatest: true });
-    const reports = await SafetyReport.find({ reportId: { $in: analyses.map((a) => a.reportId) } });
+    if (!analyses || analyses.length === 0) return [];
 
+    const reports = await SafetyReport.find({ reportId: { $in: analyses.map((a) => a.reportId) } });
     const reportMap = new Map();
     for (const r of reports) reportMap.set(r.reportId, r);
 
@@ -84,30 +100,26 @@ export class AnalyticsService {
       entry.totalScore += a.riskScore?.score || 0;
     }
 
-    return Array.from(siteMap.values()).map((s) => ({
-      site: s.site,
-      totalReports: s.totalReports,
-      sifCount: s.sifCount,
-      sifRate: s.totalReports > 0 ? Math.round((s.sifCount / s.totalReports) * 100) : 0,
-      avgRiskScore: s.totalReports > 0 ? Math.round(s.totalScore / s.totalReports) : 0,
-    })).sort((a, b) => b.sifRate - a.sifRate);
+    return Array.from(siteMap.values())
+      .map((s) => ({
+        site: s.site,
+        totalReports: s.totalReports,
+        sifCount: s.sifCount,
+        sifRate: s.totalReports > 0 ? Math.round((s.sifCount / s.totalReports) * 100) : 0,
+        avgRiskScore: s.totalReports > 0 ? Math.round(s.totalScore / s.totalReports) : 0,
+      }))
+      .sort((a, b) => b.sifRate - a.sifRate);
   }
 
   /**
-   * Retrieve breakdown by Precursor.
+   * Retrieve breakdown by Precursor computed dynamically from MongoDB.
    */
   static async getBreakdownByPrecursor() {
-    if (mongoose.connection.readyState !== 1) {
-      return [
-        { precursor: "WORKING_AT_HEIGHT", count: 8, sifCount: 5, sifRate: 63 },
-        { precursor: "ELECTRICAL_EXPOSURE", count: 6, sifCount: 4, sifRate: 67 },
-        { precursor: "DROPPED_OBJECTS", count: 5, sifCount: 3, sifRate: 60 },
-        { precursor: "ISOLATION_FAILURE", count: 5, sifCount: 4, sifRate: 80 },
-        { precursor: "LINE_OF_FIRE", count: 4, sifCount: 2, sifRate: 50 },
-      ];
-    }
+    AnalyticsService.verifyDbConnection();
 
     const analyses = await Analysis.find({ isLatest: true });
+    if (!analyses || analyses.length === 0) return [];
+
     const precMap = new Map();
 
     for (const a of analyses) {
@@ -122,29 +134,26 @@ export class AnalyticsService {
       }
     }
 
-    return Array.from(precMap.values()).map((p) => ({
-      precursor: p.precursor,
-      count: p.count,
-      sifCount: p.sifCount,
-      sifRate: p.count > 0 ? Math.round((p.sifCount / p.count) * 100) : 0,
-    })).sort((a, b) => b.count - a.count);
+    return Array.from(precMap.values())
+      .map((p) => ({
+        precursor: p.precursor,
+        count: p.count,
+        sifCount: p.sifCount,
+        sifRate: p.count > 0 ? Math.round((p.sifCount / p.count) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
   }
 
   /**
-   * Retrieve monthly/weekly trends over time.
+   * Retrieve monthly/weekly trends over time computed dynamically from MongoDB.
    */
   static async getTrendOverTime() {
-    if (mongoose.connection.readyState !== 1) {
-      return [
-        { period: "2026-01", totalReports: 8, sifPotentialCount: 3, sifRate: 38, avgRiskScore: 64 },
-        { period: "2026-02", totalReports: 12, sifPotentialCount: 4, sifRate: 33, avgRiskScore: 61 },
-        { period: "2026-03", totalReports: 15, sifPotentialCount: 5, sifRate: 33, avgRiskScore: 59 },
-      ];
-    }
+    AnalyticsService.verifyDbConnection();
 
     const analyses = await Analysis.find({ isLatest: true });
-    const reports = await SafetyReport.find({ reportId: { $in: analyses.map((a) => a.reportId) } });
+    if (!analyses || analyses.length === 0) return [];
 
+    const reports = await SafetyReport.find({ reportId: { $in: analyses.map((a) => a.reportId) } });
     const reportMap = new Map();
     for (const r of reports) reportMap.set(r.reportId, r);
 
@@ -165,43 +174,33 @@ export class AnalyticsService {
       p.totalScore += a.riskScore?.score || 0;
     }
 
-    return Array.from(periodMap.values()).map((p) => ({
-      period: p.period,
-      totalReports: p.totalReports,
-      sifPotentialCount: p.sifPotentialCount,
-      sifRate: p.totalReports > 0 ? Math.round((p.sifPotentialCount / p.totalReports) * 100) : 0,
-      avgRiskScore: p.totalReports > 0 ? Math.round(p.totalScore / p.totalReports) : 0,
-    })).sort((a, b) => a.period.localeCompare(b.period));
+    return Array.from(periodMap.values())
+      .map((p) => ({
+        period: p.period,
+        totalReports: p.totalReports,
+        sifPotentialCount: p.sifPotentialCount,
+        sifRate: p.totalReports > 0 ? Math.round((p.sifPotentialCount / p.totalReports) * 100) : 0,
+        avgRiskScore: p.totalReports > 0 ? Math.round(p.totalScore / p.totalReports) : 0,
+      }))
+      .sort((a, b) => a.period.localeCompare(b.period));
   }
 
   /**
-   * Retrieve barrier health & failure distributions.
+   * Retrieve barrier health & failure distributions computed dynamically from MongoDB.
    */
   static async getBarrierHealthAnalytics() {
-    if (mongoose.connection.readyState !== 1) {
+    AnalyticsService.verifyDbConnection();
+
+    const analyses = await Analysis.find({ isLatest: true });
+    if (!analyses || analyses.length === 0) {
       return {
-        overallResilienceScore: 78,
-        statusBreakdown: {
-          PRESENT_EFFECTIVE: 42,
-          DEGRADED: 14,
-          FAILED: 9,
-          MISSING: 6,
-        },
-        hierarchyBreakdown: {
-          ENGINEERING: 35,
-          ADMINISTRATIVE: 20,
-          PPE: 16,
-        },
-        topFailedBarriers: [
-          { name: "Lockout / Tagout (LOTO)", failCount: 6, category: "ENGINEERING" },
-          { name: "100% Fall Arrest Harness", failCount: 5, category: "PPE" },
-          { name: "Zero Voltage Verification", failCount: 4, category: "PROCEDURAL" },
-          { name: "Tool Tethering Lanyard", failCount: 4, category: "ENGINEERING" },
-        ],
+        overallResilienceScore: 100,
+        statusBreakdown: { PRESENT_EFFECTIVE: 0, DEGRADED: 0, FAILED: 0, MISSING: 0 },
+        hierarchyBreakdown: {},
+        topFailedBarriers: [],
       };
     }
 
-    const analyses = await Analysis.find({ isLatest: true });
     const statusCounts = { PRESENT_EFFECTIVE: 0, DEGRADED: 0, FAILED: 0, MISSING: 0 };
     const hierarchyCounts = {};
     const failureCountMap = new Map();
@@ -234,7 +233,7 @@ export class AnalyticsService {
   }
 
   /**
-   * Unified executive dashboard aggregation.
+   * Unified executive dashboard aggregation computed directly from MongoDB.
    */
   static async getFullExecutiveDashboard() {
     const [kpis, bySite, byPrecursor, trends, barrierHealth] = await Promise.all([
@@ -251,19 +250,6 @@ export class AnalyticsService {
       byPrecursor,
       trends,
       barrierHealth,
-    };
-  }
-
-  static getMockKpis() {
-    return {
-      totalReports: 26,
-      analyzedReports: 26,
-      sifPotentialCount: 9,
-      sifRate: 35,
-      criticalRiskCount: 6,
-      highRiskCount: 8,
-      activePatternsCount: 3,
-      barrierHealthScore: 78,
     };
   }
 }

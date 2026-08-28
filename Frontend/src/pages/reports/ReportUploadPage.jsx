@@ -168,15 +168,17 @@ export default function ReportUploadPage() {
         };
 
         const result = await reportsService.createReport(payload);
-        const reportId = result._id || result.reportId;
+        const reportId = result?._id || result?.reportId || result?.data?._id || result?.data?.reportId;
 
-        // Navigate to the real-time NLP analysis pipeline
-        navigate(`/reports/analyzing?reportId=${reportId || 'new'}&source=text`);
+        if (reportId) {
+          navigate(`/reports/analyzing?reportId=${reportId}&source=text`);
+        } else {
+          setError('Failed to retrieve report ID after ingestion.');
+        }
       }
     } catch (err) {
-      // In case backend is temporarily unreachable or mocked, navigate to analyzing pipeline with synthetic ID
-      console.warn('Backend ingestion notice:', err);
-      navigate(`/reports/analyzing?reportId=INC-2026-INGESTED&source=demo`);
+      console.error('Report ingestion failed:', err);
+      setError(err?.response?.data?.message || err?.message || 'Report ingestion failed. Please verify the backend service is reachable.');
     } finally {
       setSubmitting(false);
     }

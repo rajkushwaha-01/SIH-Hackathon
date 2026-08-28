@@ -6,7 +6,20 @@ import { logger } from "../../utils/logger.js";
 
 export class CausalGraphService {
   /**
-   * Builds full multi-report causal graph or filtered subgraph.
+   * Check if MongoDB is connected; throw error if offline (Rule 20: No Silent Fallback).
+   */
+  static verifyDbConnection() {
+    if (mongoose.connection.readyState !== 1) {
+      throw new AppError(
+        "Database is offline or disconnected. Cannot generate causal graph.",
+        503,
+        "DATABASE_DISCONNECTED"
+      );
+    }
+  }
+
+  /**
+   * Builds full multi-report causal graph or filtered subgraph dynamically from MongoDB.
    */
   static async buildEnterpriseGraph({
     minWeight = 1,
@@ -14,18 +27,23 @@ export class CausalGraphService {
     precursor = null,
     reportId = null,
   } = {}) {
-    logger.info("Building SIF Precursor Causal Graph...");
-
-    if (mongoose.connection.readyState !== 1) {
-      return CausalGraphService.getMockGraphPayload();
-    }
+    CausalGraphService.verifyDbConnection();
 
     const query = { isLatest: true };
     if (reportId) query.reportId = reportId;
 
     const analyses = await Analysis.find(query);
     if (!analyses || analyses.length === 0) {
-      return CausalGraphService.getMockGraphPayload();
+      return {
+        scope: reportId ? "INCIDENT" : "ENTERPRISE",
+        targetIdentifier: reportId || "ALL",
+        nodeCount: 0,
+        edgeCount: 0,
+        nodes: [],
+        edges: [],
+        highRiskPathways: [],
+        cytoscapeElements: [],
+      };
     }
 
     // Hydrate report metadata for site filter if needed
@@ -41,213 +59,184 @@ export class CausalGraphService {
     const nodesMap = new Map();
     const edgesMap = new Map();
 
-    const addNode = (id, label, type, weight = 1, metadata = {}) => {
+    const addNode = (id, label, type) => {
       if (!nodesMap.has(id)) {
-        nodesMap.set(id, { id, label, type, weight, metadata });
-      } else {
-        nodesMap.get(id).weight += weight;
+        nodesMap.set(id, { id, label, type, weight: 0 });
       }
+      nodesMap.get(id).weight += 1;
     };
 
-    const addEdge = (source, target, relationship, evidence = "") => {
-      const edgeId = `${source}->${target}:${relationship}`;
+    const addEdge = (sourceId, targetId, relationship, evidenceText) => {
+      const edgeId = `${sourceId}__${relationship}__${targetId}`;
       if (!edgesMap.has(edgeId)) {
         edgesMap.set(edgeId, {
           id: edgeId,
-          source,
-          target,
+          source: sourceId,
+          target: targetId,
           relationship,
-          weight: 1,
-          evidenceSnippets: evidence ? [evidence] : [],
+          weight: 0,
+          evidenceSnippets: [],
         });
-      } else {
-        const edge = edgesMap.get(edgeId);
-        edge.weight += 1;
-        if (evidence && !edge.evidenceSnippets.includes(evidence)) {
-          edge.evidenceSnippets.push(evidence);
-        }
+      }
+      const edge = edgesMap.get(edgeId);
+      edge.weight += 1;
+      if (evidenceText && !edge.evidenceSnippets.includes(evidenceText) && edge.evidenceSnippets.length < 3) {
+        edge.evidenceSnippets.push(evidenceText);
       }
     };
 
-    for (const analysis of analyses) {
-      if (site && !reportMap.has(analysis.reportId)) continue;
+    for (const a of analyses) {
+      if (site && !reportMap.has(a.reportId)) continue;
 
-      const eventNodeId = `event_${analysis.reportId}`;
-      addNode(eventNodeId, analysis.reportId, "EVENT", 1, {
-        riskScore: analysis.riskScore?.score,
-        sifClassification: analysis.sifClassification?.classification,
-      });
+      const precs = a.precursors || [];
+      if (precursor && !precs.some((p) => p.type === precursor)) continue;
 
-      const precursors = analysis.precursors || [];
-      const energySources = analysis.nlpExtraction?.energySources || [];
-      const unsafeActs = analysis.nlpExtraction?.unsafeActs || [];
-      const barriers = analysis.nlpExtraction?.barriers || [];
-      const lsrMappings = analysis.lifeSavingRuleMappings || [];
-      const consequence = analysis.nlpExtraction?.consequences?.worstCaseConsequence || "Serious Injury / Fatality";
+      const extraction = a.nlpExtraction || {};
 
-      const consequenceNodeId = `cons_${consequence.replace(/\s+/g, "_").toLowerCase().substring(0, 30)}`;
-      addNode(consequenceNodeId, consequence, "CONSEQUENCE", 1);
+      // 1. Energy Sources -> Precursors
+      for (const e of extraction.energySources || []) {
+        const eNodeId = `energy_${e.type.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+        addNode(eNodeId, `${e.type} Energy`, "ENERGY_SOURCE");
 
-      // 1. Process Precursor Nodes & Event Edges
-      for (const p of precursors) {
-        if (precursor && p.type !== precursor) continue;
+        for (const p of precs) {
+          const pNodeId = `prec_${p.type.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+          addNode(pNodeId, p.type.replace(/_/g, " "), "PRECURSOR");
+          addEdge(eNodeId, pNodeId, "CAUSES", p.evidenceSnippet);
+        }
+      }
 
-        const precNodeId = `prec_${p.type}`;
-        addNode(precNodeId, p.type.replace(/_/g, " "), "PRECURSOR", 1, { severity: p.severity });
-        addEdge(eventNodeId, precNodeId, "ASSOCIATED_WITH", p.evidenceText);
+      // 2. Unsafe Acts -> Precursors
+      for (const act of extraction.unsafeActs || []) {
+        const actNodeId = `act_${act.toLowerCase().slice(0, 20).replace(/[^a-z0-9]/g, "_")}`;
+        addNode(actNodeId, act.slice(0, 35), "UNSAFE_ACT");
 
-        // 2. Connect Energy Sources -> Precursor (CAUSES)
-        for (const energy of energySources) {
-          const energyNodeId = `energy_${energy.type.replace(/\s+/g, "_").toLowerCase()}`;
-          addNode(energyNodeId, energy.type, "ENERGY_SOURCE", 1);
-          addEdge(energyNodeId, precNodeId, "CAUSES");
+        for (const p of precs) {
+          const pNodeId = `prec_${p.type.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+          addEdge(actNodeId, pNodeId, "CAUSES");
+        }
+      }
+
+      // 3. Precursors -> Failed Barriers
+      for (const p of precs) {
+        const pNodeId = `prec_${p.type.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+        addNode(pNodeId, p.type.replace(/_/g, " "), "PRECURSOR");
+
+        for (const b of extraction.barriers || []) {
+          if (b.status === "FAILED" || b.status === "MISSING" || b.status === "DEGRADED") {
+            const bNodeId = `barrier_${b.name.toLowerCase().slice(0, 20).replace(/[^a-z0-9]/g, "_")}`;
+            addNode(bNodeId, b.name, "BARRIER");
+            addEdge(pNodeId, bNodeId, "FAILS", b.evidenceText);
+
+            // Barrier -> Consequences
+            for (const inj of extraction.consequences?.potentialInjuries || ["Severe Injury / Fatality"]) {
+              const cNodeId = `cons_${inj.toLowerCase().slice(0, 20).replace(/[^a-z0-9]/g, "_")}`;
+              addNode(cNodeId, inj.slice(0, 35), "CONSEQUENCE");
+              addEdge(bNodeId, cNodeId, "LEADS_TO");
+            }
+          }
         }
 
-        // 3. Connect Unsafe Acts -> Precursor (CAUSES)
-        for (const act of unsafeActs) {
-          const actNodeId = `act_${act.replace(/\s+/g, "_").toLowerCase().substring(0, 30)}`;
-          addNode(actNodeId, act, "UNSAFE_ACT", 1);
-          addEdge(actNodeId, precNodeId, "CAUSES");
-        }
-
-        // 4. Connect Precursor -> Failed Barriers (FAILS)
-        const failedBarriers = barriers.filter((b) => b.status === "FAILED" || b.status === "MISSING");
-        for (const b of failedBarriers) {
-          const barrierNodeId = `barrier_${b.name.replace(/\s+/g, "_").toLowerCase().substring(0, 30)}`;
-          addNode(barrierNodeId, b.name, "BARRIER", 1, { status: b.status, category: b.category });
-          addEdge(precNodeId, barrierNodeId, "FAILS", b.evidenceText);
-          addEdge(barrierNodeId, consequenceNodeId, "LEADS_TO");
-        }
-
-        // 5. Connect Precursor -> IOGP Life-Saving Rules (VIOLATES)
-        for (const lsr of lsrMappings) {
-          const lsrNodeId = `lsr_${lsr.ruleId}`;
-          addNode(lsrNodeId, lsr.ruleName, "LIFE_SAVING_RULE", 1, { ruleId: lsr.ruleId });
-          addEdge(precNodeId, lsrNodeId, "VIOLATES", lsr.evidenceText);
+        // 4. Precursors -> Life Saving Rules
+        for (const lsr of a.lifeSavingRules || []) {
+          const lsrNodeId = `lsr_${lsr.ruleId.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+          addNode(lsrNodeId, lsr.name, "LIFE_SAVING_RULE");
+          addEdge(pNodeId, lsrNodeId, "VIOLATES", lsr.evidenceText);
         }
       }
     }
 
-    const filteredEdges = Array.from(edgesMap.values()).filter((e) => e.weight >= minWeight);
-    const nodes = Array.from(nodesMap.values());
-    const pathways = CausalGraphService.extractHighRiskPathways(nodes, filteredEdges);
+    const filteredNodes = Array.from(nodesMap.values()).filter((n) => n.weight >= minWeight);
+    const validNodeIds = new Set(filteredNodes.map((n) => n.id));
+    const filteredEdges = Array.from(edgesMap.values()).filter(
+      (e) => validNodeIds.has(e.source) && validNodeIds.has(e.target) && e.weight >= minWeight
+    );
+
+    const highRiskPathways = CausalGraphService.extractHighRiskPathways(filteredNodes, filteredEdges);
+    const cytoscapeElements = CausalGraphService.formatCytoscapePayload(filteredNodes, filteredEdges);
 
     return {
-      scope: reportId ? "REPORT" : precursor ? "PRECURSOR" : site ? "SITE" : "ENTERPRISE",
-      targetIdentifier: reportId || precursor || site || "ALL",
-      nodeCount: nodes.length,
+      scope: reportId ? "INCIDENT" : "ENTERPRISE",
+      targetIdentifier: reportId || (site ? `Site: ${site}` : "ALL"),
+      nodeCount: filteredNodes.length,
       edgeCount: filteredEdges.length,
-      nodes,
+      nodes: filteredNodes,
       edges: filteredEdges,
-      highRiskPathways: pathways,
-      cytoscapeElements: CausalGraphService.formatCytoscapePayload(nodes, filteredEdges),
+      highRiskPathways,
+      cytoscapeElements,
     };
   }
 
   /**
-   * Find and rank high-risk causal pathways from Energy Source/Unsafe Act -> Precursor -> Failed Barrier -> Consequence.
+   * Identifies high-risk causal chains (Energy/Act -> Precursor -> Failed Barrier -> Consequence).
    */
   static extractHighRiskPathways(nodes = [], edges = []) {
     const pathways = [];
+    const precNodes = nodes.filter((n) => n.type === "PRECURSOR");
 
-    // Find all FAILS edges: (PRECURSOR -> BARRIER)
-    const failsEdges = edges.filter((e) => e.relationship === "FAILS");
+    for (const pNode of precNodes) {
+      const incomingEdges = edges.filter((e) => e.target === pNode.id && e.relationship === "CAUSES");
+      const outgoingFails = edges.filter((e) => e.source === pNode.id && e.relationship === "FAILS");
 
-    for (const failEdge of failsEdges) {
-      const precNode = nodes.find((n) => n.id === failEdge.source);
-      const barrierNode = nodes.find((n) => n.id === failEdge.target);
+      for (const inEdge of incomingEdges) {
+        for (const outEdge of outgoingFails) {
+          const leadsToEdge = edges.find((e) => e.source === outEdge.target && e.relationship === "LEADS_TO");
 
-      if (precNode && barrierNode) {
-        // Find cause edge leading into precursor
-        const causeEdge = edges.find((e) => e.target === precNode.id && e.relationship === "CAUSES");
-        const causeNode = causeEdge ? nodes.find((n) => n.id === causeEdge.source) : null;
+          const triggerNode = nodes.find((n) => n.id === inEdge.source);
+          const barrierNode = nodes.find((n) => n.id === outEdge.target);
+          const consequenceNode = leadsToEdge ? nodes.find((n) => n.id === leadsToEdge.target) : null;
 
-        const pathRiskScore = Math.min(100, Math.round(50 + (failEdge.weight * 10) + (causeEdge ? causeEdge.weight * 5 : 0)));
-
-        pathways.push({
-          pathwayId: `PATH-${precNode.label.substring(0, 4).toUpperCase()}-${barrierNode.id.substring(0, 8)}`,
-          triggerCause: causeNode ? causeNode.label : "Hazardous Operation",
-          precursor: precNode.label,
-          failedBarrier: barrierNode.label,
-          potentialConsequence: "Fatal Injury / Catastrophic Incident",
-          pathRiskScore,
-          chainDescription: `${causeNode ? causeNode.label : "Hazardous Work"} ➔ ${precNode.label} ➔ Barrier Failure (${barrierNode.label}) ➔ Life-Altering Consequence`,
-          occurrenceFrequency: failEdge.weight,
-        });
+          if (triggerNode && barrierNode) {
+            const chainWeight = inEdge.weight + outEdge.weight + (leadsToEdge?.weight || 0);
+            pathways.push({
+              id: `pathway_${triggerNode.id}_${pNode.id}_${barrierNode.id}`,
+              triggerCause: triggerNode.label,
+              precursor: pNode.label,
+              failedBarrier: barrierNode.label,
+              consequence: consequenceNode?.label || "Fatal Injury / Catastrophic SIF",
+              chainWeight,
+              description: `[${triggerNode.label}] triggers [${pNode.label}], breaching [${barrierNode.label}] defense.`,
+            });
+          }
+        }
       }
     }
 
-    // Sort descending by pathRiskScore
-    pathways.sort((a, b) => b.pathRiskScore - a.pathRiskScore);
-    return pathways.slice(0, 10);
+    return pathways.sort((a, b) => b.chainWeight - a.chainWeight).slice(0, 10);
   }
 
   /**
-   * Format standard Cytoscape.js visualization structure.
+   * Converts nodes and edges into Cytoscape.js compatible graph payload.
    */
   static formatCytoscapePayload(nodes = [], edges = []) {
-    return {
-      nodes: nodes.map((n) => ({
+    const elements = [];
+
+    for (const n of nodes) {
+      elements.push({
+        group: "nodes",
         data: {
           id: n.id,
           label: n.label,
           type: n.type,
           weight: n.weight,
-          ...n.metadata,
         },
-      })),
-      edges: edges.map((e) => ({
+      });
+    }
+
+    for (const e of edges) {
+      elements.push({
+        group: "edges",
         data: {
           id: e.id,
           source: e.source,
           target: e.target,
           relationship: e.relationship,
           weight: e.weight,
+          evidenceSnippets: e.evidenceSnippets,
         },
-      })),
-    };
-  }
+      });
+    }
 
-  /**
-   * Return rich mock graph payload for offline/testing mode.
-   */
-  static getMockGraphPayload() {
-    const nodes = [
-      { id: "energy_electrical_440v", label: "Electrical Energy (440V)", type: "ENERGY_SOURCE", weight: 3 },
-      { id: "act_omitted_loto", label: "Omitted LOTO Verification", type: "UNSAFE_ACT", weight: 3 },
-      { id: "prec_electrical_exposure", label: "Electrical Exposure", type: "PRECURSOR", weight: 3 },
-      { id: "prec_working_at_height", label: "Working at Height", type: "PRECURSOR", weight: 4 },
-      { id: "barrier_loto", label: "Lockout / Tagout (LOTO)", type: "BARRIER", weight: 3 },
-      { id: "barrier_harness", label: "100% Fall Arrest Harness", type: "BARRIER", weight: 4 },
-      { id: "lsr_energy_isolation", label: "Energy Isolation", type: "LIFE_SAVING_RULE", weight: 3 },
-      { id: "lsr_working_at_height", label: "Working at Height", type: "LIFE_SAVING_RULE", weight: 4 },
-      { id: "cons_fatal_shock", label: "Fatal Electric Shock / Arc Flash", type: "CONSEQUENCE", weight: 3 },
-      { id: "cons_fatal_fall", label: "Fatal Fall from Height", type: "CONSEQUENCE", weight: 4 },
-    ];
-
-    const edges = [
-      { id: "e1", source: "energy_electrical_440v", target: "prec_electrical_exposure", relationship: "CAUSES", weight: 3, evidenceSnippets: [] },
-      { id: "e2", source: "act_omitted_loto", target: "prec_electrical_exposure", relationship: "CAUSES", weight: 3, evidenceSnippets: [] },
-      { id: "e3", source: "prec_electrical_exposure", target: "barrier_loto", relationship: "FAILS", weight: 3, evidenceSnippets: [] },
-      { id: "e4", source: "prec_electrical_exposure", target: "lsr_energy_isolation", relationship: "VIOLATES", weight: 3, evidenceSnippets: [] },
-      { id: "e5", source: "barrier_loto", target: "cons_fatal_shock", relationship: "LEADS_TO", weight: 3, evidenceSnippets: [] },
-      { id: "e6", source: "prec_working_at_height", target: "barrier_harness", relationship: "FAILS", weight: 4, evidenceSnippets: [] },
-      { id: "e7", source: "prec_working_at_height", target: "lsr_working_at_height", relationship: "VIOLATES", weight: 4, evidenceSnippets: [] },
-      { id: "e8", source: "barrier_harness", target: "cons_fatal_fall", relationship: "LEADS_TO", weight: 4, evidenceSnippets: [] },
-    ];
-
-    const pathways = CausalGraphService.extractHighRiskPathways(nodes, edges);
-
-    return {
-      scope: "ENTERPRISE",
-      targetIdentifier: "ALL",
-      nodeCount: nodes.length,
-      edgeCount: edges.length,
-      nodes,
-      edges,
-      highRiskPathways: pathways,
-      cytoscapeElements: CausalGraphService.formatCytoscapePayload(nodes, edges),
-    };
+    return elements;
   }
 }
 

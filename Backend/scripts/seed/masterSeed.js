@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { env } from "../../src/config/env.js";
-import { connectDatabase, disconnectDatabase } from "../../src/config/database.js";
+import { connectDB, disconnectDB } from "../../src/config/db.js";
 import { User } from "../../src/models/User.js";
 import { SafetyReport } from "../../src/models/SafetyReport.js";
 import { Analysis } from "../../src/models/Analysis.js";
@@ -253,7 +253,12 @@ export async function runMasterSeed() {
     logger.info("🌱 INITIATING SIH 2026 MASTER HSE SEED PIPELINE");
     logger.info("=================================================");
 
-    await connectDatabase();
+    const conn = await connectDB();
+    if (!conn || mongoose.connection.readyState !== 1) {
+      throw new Error(
+        `Cannot run master seed pipeline: MongoDB is unreachable at "${env.MONGODB_URI}". Please start your MongoDB server or provide a valid MONGODB_URI in .env.`
+      );
+    }
 
     // 1. Seed Users
     logger.info("Seeding Default RBAC Users...");
@@ -308,9 +313,11 @@ export async function runMasterSeed() {
 
       // Execute AI NLP Analysis & Vector Pipeline
       try {
-        const analysis = await ExtractionService.extractAndPersist(report);
-        await AlertService.evaluateReportAlerts(report, analysis);
-        logger.info(`✓ Ingested & Analyzed: ${inc.reportId} ➔ SIF: ${analysis.sifClassification.classification} (Score: ${analysis.riskScore.score})`);
+        const result = await ExtractionService.extractAndPersist(inc.reportId);
+        if (result?.analysis) {
+          await AlertService.evaluateReportAlerts(report, result.analysis);
+          logger.info(`✓ Ingested & Analyzed: ${inc.reportId} ➔ SIF: ${result.analysis.sifClassification.classification} (Score: ${result.analysis.riskScore.score})`);
+        }
       } catch (err) {
         logger.warn(`Could not run full extraction for ${inc.reportId}: ${err.message}`);
       }
@@ -327,7 +334,7 @@ export async function runMasterSeed() {
   } catch (error) {
     logger.error(`Master seed pipeline failed: ${error.message}`);
   } finally {
-    await disconnectDatabase();
+    await disconnectDB();
   }
 }
 

@@ -48,78 +48,12 @@ export default function HseAlertsPage() {
     setError(null);
     try {
       const res = await alertsService.getAlerts();
-      if (res && res.data && res.data.length > 0) {
-        setAlerts(res.data);
-      } else if (Array.isArray(res) && res.length > 0) {
-        setAlerts(res);
-      } else {
-        // Fallback rich seeded alerts
-        setAlerts([
-          {
-            _id: 'alt-001',
-            title: 'Critical Energy Isolation Bypass Cluster Detected',
-            message:
-              'AI Engine detected 3 consecutive energy isolation near-misses in Gas Processing Sector 4 over the past 48 hours. Suggests systemic barrier degradation during shift turnover.',
-            severity: 'CRITICAL',
-            status: 'ACTIVE',
-            site: 'Offshore Platform Alpha',
-            location: 'Gas Processing — Sector 4',
-            createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-            sourceReports: [
-              { id: 'INC-1021', title: 'Unverified Energy Isolation Bypass on Line 4', score: 82 },
-              { id: 'INC-2026-002', title: '440V Motor Control Center Arc Flash Near Miss', score: 88 },
-            ],
-            recommendedAction: 'Mandate digital dual-signoff on zero-energy tests across all Gas Processing permits.',
-          },
-          {
-            _id: 'alt-002',
-            title: 'Elevated Fall from Height Precursor Frequency',
-            message:
-              'Multiple reports of unclipped scaffolding toe-boards and shifting walking planks during offshore structural repainting.',
-            severity: 'HIGH',
-            status: 'ACTIVE',
-            site: 'Offshore Platform Alpha',
-            location: 'Module B — Level 3',
-            createdAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
-            sourceReports: [
-              { id: 'INC-2026-001', title: 'Unsecured Scaffolding Planks at 8m Elevation', score: 82 },
-            ],
-            recommendedAction: 'Execute immediate stand-down inspection for all scaffolding platforms above 2 meters.',
-          },
-          {
-            _id: 'alt-003',
-            title: 'Toxic H2S Line Breaking Sensor Verification Delay',
-            message:
-              'Contractor crew commenced crude desalter flange loosening prior to receiving signed gas sensor calibration readouts.',
-            severity: 'HIGH',
-            status: 'ACKNOWLEDGED',
-            site: 'Refinery Unit 4',
-            location: 'Desalter Separator Area',
-            createdAt: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
-            sourceReports: [
-              { id: 'INC-2026-003', title: 'Toxic H2S Gas Pocket Breakthrough During Line Breaking', score: 85 },
-            ],
-            recommendedAction: 'Verify calibration dates on all wearable four-gas detectors.',
-          },
-          {
-            _id: 'alt-004',
-            title: 'Overhead Crane Suspended Load Walkway Encroachment',
-            message:
-              'Heavy lift operations crossed pedestrian transit zones without barricade marshals positioned.',
-            severity: 'MEDIUM',
-            status: 'RESOLVED',
-            site: 'Chemical Terminal B',
-            location: 'Loading Bay 3',
-            createdAt: new Date(Date.now() - 2 * 86400 * 1000).toISOString(),
-            sourceReports: [
-              { id: 'INC-2026-004', title: 'Suspended 4-Ton Heat Exchanger Swing Over Walkway', score: 78 },
-            ],
-            recommendedAction: 'Fixed exclusion perimeter barriers installed.',
-          },
-        ]);
-      }
+      const alertsList = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : (res?.alerts || []);
+      setAlerts(alertsList);
     } catch (err) {
-      setError(err.message || 'Failed to load HSE alerts');
+      console.error('Failed to load alerts from database:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to load HSE alerts from database');
+      setAlerts([]);
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,7 @@ import { SifClassifierService } from "../sif/SifClassifierService.js";
 import { PrecursorService } from "../precursor/PrecursorService.js";
 import { LifeSavingRulesService } from "../lifeSavingRules/LifeSavingRulesService.js";
 import { RiskScoringEngine, RISK_ENGINE_VERSION } from "../risk/RiskScoringEngine.js";
+import { VectorSearchService } from "../vector/VectorSearchService.js";
 import { AppError } from "../../utils/appError.js";
 import { logger } from "../../utils/logger.js";
 
@@ -144,7 +145,14 @@ export class ExtractionService {
 
     await analysis.save();
 
-    // 8. Update SafetyReport status
+    // 8. Vector Embedding & Pinecone Indexing
+    try {
+      await VectorSearchService.indexReportVectors(report, analysis);
+    } catch (vecErr) {
+      logger.warn(`Vector indexing notice for ${report.reportId}: ${vecErr.message}`);
+    }
+
+    // 9. Update SafetyReport status
     report.status = "ANALYZED";
     report.lastAnalyzedAt = new Date();
     await report.save();

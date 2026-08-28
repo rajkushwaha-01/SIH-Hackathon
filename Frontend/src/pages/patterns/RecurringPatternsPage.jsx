@@ -45,78 +45,12 @@ export default function RecurringPatternsPage() {
     setError(null);
     try {
       const res = await patternsService.getPatterns();
-      if (res && res.data && res.data.length > 0) {
-        setPatterns(res.data);
-      } else if (Array.isArray(res) && res.length > 0) {
-        setPatterns(res);
-      } else {
-        // Fallback rich seeded recurring patterns
-        setPatterns([
-          {
-            _id: 'pat-001',
-            title: 'Maintenance + Gas Processing + Energy Isolation + Barrier Failure',
-            description:
-              'Multiple reports indicate recurring Lockout/Tagout omissions during ad-hoc pump maintenance in the Gas Processing sector, specifically occurring during shift changeovers.',
-            riskLevel: 'CRITICAL',
-            status: 'ACTIVE',
-            reportCount: 14,
-            shifts: ['Night Shift', 'Weekend Maintenance'],
-            elements: {
-              activity: 'Ad-Hoc Pump Overhaul',
-              location: 'Gas Processing — Sector 4',
-              hazard: 'High Pressure Stored Hydraulic Energy',
-              barrier: 'Secondary Zero-Energy LOTO Verification',
-            },
-            reports: [
-              { id: 'INC-1021', title: 'Unverified Energy Isolation Bypass on Line 4', score: 82 },
-              { id: 'INC-2026-002', title: '440V Motor Control Center Arc Flash Near Miss', score: 88 },
-            ],
-            confidence: 0.94,
-          },
-          {
-            _id: 'pat-002',
-            title: 'Scaffolding + Work at Height + Structural Maintenance + Defective Planks',
-            description:
-              'Repeated observations of unclipped scaffolding toe-boards and shifting walking planks during offshore module structural repainting.',
-            riskLevel: 'HIGH',
-            status: 'ACTIVE',
-            reportCount: 9,
-            shifts: ['Day Shift'],
-            elements: {
-              activity: 'Structural Painting at Elevation',
-              location: 'Offshore Platform Alpha — Module B',
-              hazard: 'Gravitational Fall from Height (>8m)',
-              barrier: 'Daily Scafftag Inspection Protocol',
-            },
-            reports: [
-              { id: 'INC-2026-001', title: 'Unsecured Scaffolding Planks at 8m Elevation', score: 82 },
-            ],
-            confidence: 0.88,
-          },
-          {
-            _id: 'pat-003',
-            title: 'Flange Breaking + Desalter Unit + Toxic H2S + Atmospheric Gas Testing Delay',
-            description:
-              'Pattern of pipefitters loosening flanges prior to receiving formal signed gas sensor calibration readouts from safety permit issuer.',
-            riskLevel: 'CRITICAL',
-            status: 'UNDER_REVIEW',
-            reportCount: 6,
-            shifts: ['Turnaround Overhaul Shift'],
-            elements: {
-              activity: 'Flange & Pipe Spool Separation',
-              location: 'Refinery Unit 4 — Crude Desalter',
-              hazard: 'Toxic Hydrogen Sulfide (H2S) Inhalation',
-              barrier: 'Pre-Job Atmospheric Gas Sensor Signoff',
-            },
-            reports: [
-              { id: 'INC-2026-003', title: 'Toxic H2S Gas Pocket Breakthrough During Line Breaking', score: 85 },
-            ],
-            confidence: 0.92,
-          },
-        ]);
-      }
+      const patternsList = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : (res?.patterns || []);
+      setPatterns(patternsList);
     } catch (err) {
-      setError(err.message || 'Failed to load recurring patterns');
+      console.error('Failed to load recurring patterns from database:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to load recurring patterns from database');
+      setPatterns([]);
     } finally {
       setLoading(false);
     }
@@ -132,9 +66,8 @@ export default function RecurringPatternsPage() {
       await patternsService.detectPatterns();
       await fetchPatterns();
     } catch (err) {
-      console.warn('Pattern detection notice:', err);
-      // Refresh mock data
-      await fetchPatterns();
+      console.error('Pattern detection failed:', err);
+      setError(err?.response?.data?.message || err?.message || 'Pattern detection failed');
     } finally {
       setDetecting(false);
     }

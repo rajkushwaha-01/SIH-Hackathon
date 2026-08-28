@@ -60,112 +60,20 @@ export default function ReportDetailPage() {
       if (res.status === 'fulfilled' && res.value) {
         setDetailData(res.value);
       } else {
-        // Fallback default rich dossier template
-        setDetailData({
-          report: {
-            reportId: id || 'INC-1021',
-            title: 'Near Miss INC-1021 — Unverified Energy Isolation Bypass',
-            description:
-              'During routine pump overhaul on unit P-402 in the Gas Processing Area, the primary Lockout/Tagout (LOTO) breaker was isolated, but the secondary hydraulic supply valve remained pressurized. The maintenance technician approached the valve manifold without executing zero-energy verification. Proximity sensor detected the hazard before contact was initiated.',
-            site: 'Offshore Platform Alpha',
-            location: 'Gas Processing Area — Sector 4',
-            activity: 'Maintenance',
-            eventDate: '2026-08-26T09:15:00Z',
-            reportType: 'NEAR_MISS',
-            reporterName: 'Marcus Vance',
-            reporterRole: 'Lead Operations Technician',
-            reviewStatus: 'PENDING_REVIEW',
-          },
-          latestAnalysis: {
-            sifClassification: {
-              classification: 'SIF_POTENTIAL',
-              confidence: 0.91,
-              reasoning:
-                'Worker was directly exposed to hazardous stored hydraulic energy with missing secondary isolation verification.',
-            },
-            riskScore: {
-              score: 82,
-              maxScore: 100,
-              level: 'CRITICAL',
-              dominantPrecursor: 'Energy Isolation Failure',
-              breakdown: [
-                { name: 'Energy Exposure (Hydraulic 3000 PSI)', score: 28, explanation: 'High pressure fluid exposure potential' },
-                { name: 'Barrier Failure (Secondary LOTO Omission)', score: 24, explanation: 'Secondary isolation valve unverified' },
-                { name: 'Worker Proximity & Exposure Time', score: 18, explanation: 'Worker positioned within line-of-fire' },
-                { name: 'Control Verification Procedure', score: 12, explanation: 'Zero-energy test step omitted from permit' },
-              ],
-            },
-            nlpExtraction: {
-              hazards: ['Hydraulic Stored Energy', 'High Pressure Mist', 'Pinch Point'],
-              activities: ['Pump Overhaul', 'Mechanical Maintenance'],
-              equipment: ['Pump P-402', 'High-Pressure Hydraulic Manifold', 'LOTO Locks'],
-              personnel: ['Mechanical Technician', 'Permit Issuer'],
-              unsafeActs: ['Omission of Zero-Energy Verification Step'],
-              unsafeConditions: ['Residual Hydraulic Line Pressure at 3,000 PSI'],
-              controls: ['Primary Electrical Breaker Lockout', 'Area Proximity Sensor'],
-              barriers: [
-                { name: 'Lockout/Tagout (LOTO)', status: 'FAILED', category: 'ENGINEERING' },
-                { name: 'Zero Energy Verification', status: 'MISSING', category: 'PROCEDURAL' },
-                { name: 'Proximity Warning Alarm', status: 'PRESENT_EFFECTIVE', category: 'ENGINEERING' },
-              ],
-            },
-            lifeSavingRule: {
-              ruleId: 'IOGP-LSR-04',
-              ruleCode: 'ENERGY_ISOLATION',
-              ruleName: 'Energy Isolation',
-              description: 'Verify isolation and zero energy before work begins.',
-              evidence: 'Worker approached equipment without secondary hydraulic energy isolation or zero pressure verification.',
-              confidence: 0.96,
-            },
-            recommendations: [
-              'Enforce mandatory digital dual-signoff on hydraulic zero-energy verification before permits are released.',
-              'Inspect and calibrate pressure bleed-off valves on all Gas Processing pump skids.',
-              'Conduct immediate stand-down toolbox talk on LOTO secondary energy isolation.',
-            ],
-          },
-          auditTrail: [
-            {
-              title: 'Safety Report Ingested',
-              description: 'Report uploaded via PDF document ingestion.',
-              timestamp: '2026-08-26T09:20:00Z',
-              actor: 'Marcus Vance',
-              role: 'OPERATIONS',
-            },
-            {
-              title: 'AI/NLP Pipeline Completed',
-              description: 'Classified as SIF Potential (91% confidence) with Scenario Risk 82/100.',
-              timestamp: '2026-08-26T09:20:05Z',
-              actor: 'AI_ENGINE',
-              role: 'SYSTEM',
-            },
-          ],
-        });
+        setError(`Safety report '${id}' was not found in the database.`);
+        setDetailData(null);
       }
 
       if (similarRes.status === 'fulfilled' && similarRes.value) {
-        setSimilarCases(similarRes.value.slice(0, 3));
+        const matches = similarRes.value?.results || (Array.isArray(similarRes.value) ? similarRes.value : []);
+        setSimilarCases(matches.slice(0, 3));
       } else {
-        setSimilarCases([
-          {
-            reportId: 'INC-0981',
-            title: 'Valve V-11 Isolated Incorrectly, Residual Pressure Released',
-            text: 'Technician opened line expecting zero pressure; residual hydraulic surge discharged near technician.',
-            similarity: 0.88,
-            site: 'Refinery Unit 4',
-            riskScore: 76,
-          },
-          {
-            reportId: 'NM-0872',
-            title: 'LOTO Procedure Bypassed During Pump Seal Replacement',
-            text: 'Contractor began disassembly without applying physical lockout clasp to main actuator.',
-            similarity: 0.82,
-            site: 'Offshore Platform Alpha',
-            riskScore: 71,
-          },
-        ]);
+        setSimilarCases([]);
       }
     } catch (err) {
-      setError(err.message || 'Failed to load report dossier');
+      console.error('Failed to load report dossier:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to load report dossier');
+      setDetailData(null);
     } finally {
       setLoading(false);
     }

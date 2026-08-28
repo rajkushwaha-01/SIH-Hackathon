@@ -58,65 +58,17 @@ export default function DashboardPage() {
       ]);
 
       if (dash.status === 'fulfilled' && dash.value) {
-        setDashboardData(dash.value);
-      } else {
-        // Fallback default structure
-        setDashboardData({
-          kpis: {
-            sifPotentialCount: 24,
-            analyzedReports: 1284,
-            criticalRiskCount: 8,
-            sifRate: 18,
-            activePatternsCount: 17,
-          },
-          trends: [
-            { period: 'Week 1', sifPotentialCount: 12, needsReview: 8, nonSif: 45 },
-            { period: 'Week 2', sifPotentialCount: 19, needsReview: 10, nonSif: 42 },
-            { period: 'Week 3', sifPotentialCount: 15, needsReview: 9, nonSif: 50 },
-            { period: 'Week 4', sifPotentialCount: 17, needsReview: 12, nonSif: 48 },
-            { period: 'Week 5', sifPotentialCount: 22, needsReview: 11, nonSif: 55 },
-            { period: 'Week 6', sifPotentialCount: 20, needsReview: 13, nonSif: 52 },
-            { period: 'Week 7', sifPotentialCount: 24, needsReview: 11, nonSif: 60 },
-          ],
-          byPrecursor: [
-            { name: 'Energy Exposure', percentage: 32, count: 32 },
-            { name: 'Line of Fire', percentage: 24, count: 24 },
-            { name: 'Isolation Failure', percentage: 18, count: 18 },
-          ],
-        });
+        setDashboardData(dash.value.data || dash.value);
       }
 
-      if (alertsRes.status === 'fulfilled' && alertsRes.value?.data) {
-        setRecentAlerts(alertsRes.value.data.slice(0, 3));
-      } else {
-        setRecentAlerts([
-          {
-            _id: 'alt-1',
-            title: 'Energy isolation failure bypass during maintenance',
-            site: 'Offshore Platform Alpha - Main Compressor',
-            severity: 'CRITICAL',
-            createdAt: new Date(Date.now() - 12 * 60 * 1000),
-          },
-          {
-            _id: 'alt-2',
-            title: 'Missing barricade and fall protection at height',
-            site: 'Refinery Unit 4 - Distillation Column',
-            severity: 'HIGH',
-            createdAt: new Date(Date.now() - 2 * 3600 * 1000),
-          },
-        ]);
+      const alertsData = alertsRes.status === 'fulfilled' ? (Array.isArray(alertsRes.value) ? alertsRes.value : alertsRes.value?.data || alertsRes.value?.alerts || []) : [];
+      if (alertsData.length > 0) {
+        setRecentAlerts(alertsData.slice(0, 3));
       }
 
-      if (patternsRes.status === 'fulfilled' && patternsRes.value?.data?.[0]) {
-        setTopPattern(patternsRes.value.data[0]);
-      } else {
-        setTopPattern({
-          title: 'Maintenance + Gas Processing + Energy Isolation + Barrier Failure',
-          description:
-            'System has identified a cluster of precursors occurring across multiple shifts in high-pressure gas processing lines.',
-          riskLevel: 'HIGH',
-          reportCount: 14,
-        });
+      const patternsData = patternsRes.status === 'fulfilled' ? (Array.isArray(patternsRes.value) ? patternsRes.value : patternsRes.value?.data || patternsRes.value?.patterns || []) : [];
+      if (patternsData.length > 0) {
+        setTopPattern(patternsData[0]);
       }
     } catch (err) {
       setError(err.message || 'Failed to load safety intelligence dashboard');

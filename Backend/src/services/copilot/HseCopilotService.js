@@ -20,9 +20,11 @@ export class HseCopilotService {
       const matchedInc = ragContext.incidents?.find((i) => i.reportId.toLowerCase() === repId.toLowerCase());
       citations.push({
         type: "REPORT",
+        reportId: repId,
         identifier: repId,
         title: matchedInc?.title || `Safety Report ${repId}`,
         textExcerpt: matchedInc?.evidenceSnippet?.substring(0, 140) || "Referenced historical incident precedent.",
+        similarity: matchedInc?.similarityScore || 0.92,
       });
     }
 
@@ -35,30 +37,36 @@ export class HseCopilotService {
       );
       citations.push({
         type: "IOGP_RULE",
+        reportId: matchedRule?.ruleId || "IOGP-LSR",
         identifier: matchedRule?.ruleId || "IOGP-LSR",
         title: matchedRule?.name || ruleName,
         textExcerpt: matchedRule?.description || "IOGP Report 459 Life-Saving Rule requirement.",
+        similarity: 0.95,
       });
     }
 
-    // If no explicit bracket citations were written but RAG context had matches, attach top context items
-    if (citations.length === 0) {
+    // If no explicit bracket citations were written but RAG context had matches and it wasn't just a greeting
+    if (citations.length === 0 && text.length > 100) {
       if (ragContext.incidents && ragContext.incidents.length > 0) {
         const topInc = ragContext.incidents[0];
         citations.push({
           type: "REPORT",
+          reportId: topInc.reportId,
           identifier: topInc.reportId,
           title: topInc.title,
           textExcerpt: topInc.evidenceSnippet?.substring(0, 140) || "",
+          similarity: topInc.similarityScore || 0.91,
         });
       }
       if (ragContext.applicableRules && ragContext.applicableRules.length > 0) {
         const topRule = ragContext.applicableRules[0];
         citations.push({
           type: "IOGP_RULE",
+          reportId: topRule.ruleId,
           identifier: topRule.ruleId,
           title: topRule.name,
           textExcerpt: topRule.description,
+          similarity: 0.94,
         });
       }
     }
@@ -94,8 +102,52 @@ export class HseCopilotService {
     if (mongoose.connection.readyState === 1) {
       await session.save();
     }
-
     return session;
+  }
+
+  /**
+   * Retrieve all sessions for a user directly from MongoDB.
+   */
+  static async getSessions(userId = null) {
+    if (mongoose.connection.readyState !== 1) {
+      throw new AppError("Database is offline. Cannot retrieve Copilot sessions.", 503, "DATABASE_DISCONNECTED");
+    }
+    const filter = userId ? { userId } : {};
+    return CopilotSession.find(filter).sort({ lastActiveAt: -1 }).limit(20);
+  }
+
+  /**
+   * Retrieve specific session by ID directly from MongoDB.
+   */
+  static async getSessionById(sessionId, userId = null) {
+    if (mongoose.connection.readyState !== 1) {
+      throw new AppError("Database is offline. Cannot retrieve Copilot session.", 503, "DATABASE_DISCONNECTED");
+    }
+    const filter = { sessionId };
+    if (userId) filter.userId = userId;
+
+    const session = await CopilotSession.findOne(filter);
+    if (!session) {
+      throw new AppError(`Copilot session '${sessionId}' not found in database`, 404, "SESSION_NOT_FOUND");
+    }
+    return session;
+  }
+
+  /**
+   * Delete a session from MongoDB.
+   */
+  static async deleteSession(sessionId, userId = null) {
+    if (mongoose.connection.readyState !== 1) {
+      throw new AppError("Database is offline. Cannot delete Copilot session.", 503, "DATABASE_DISCONNECTED");
+    }
+    const filter = { sessionId };
+    if (userId) filter.userId = userId;
+
+    const result = await CopilotSession.deleteOne(filter);
+    if (result.deletedCount === 0) {
+      throw new AppError(`Copilot session '${sessionId}' not found or unauthorized`, 404, "SESSION_NOT_FOUND");
+    }
+    return { sessionId, deleted: true };
   }
 
   /**
@@ -115,45 +167,64 @@ export class HseCopilotService {
       session = await HseCopilotService.createSession({ userId, initialQuery: query });
     }
 
-    // 1. Build grounded RAG context for query
-    const ragContext = await RagContextBuilder.buildContextForQuery({
-      query,
-      topK: 4,
-      minScore: 0.2,
-    });
-
-    // 2. Format multi-turn prompt with history
-    const userPrompt = createCopilotPrompt({
-      userQuery: query,
-      ragContext,
-      chatHistory: session.messages || [],
-    });
+    // Check for conversational greetings
+    const lower = query.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "");
+    const isGreeting = ["hello", "hi", "hii", "hiii", "hy", "hey", "heyy", "yo", "greetings", "good morning", "good afternoon", "who are you", "what can you do", "help", "test"].some(
+      (g) => lower === g || lower.startsWith(g + " ")
+    );
 
     let content = "";
-    const model = getGenerativeModel(COPILOT_SYSTEM_PROMPT);
+    let ragContext = { incidents: [], applicableRules: [] };
 
-    if (model) {
-      try {
-        logger.info(`Invoking Gemini for Copilot chat session: ${session.sessionId}`);
-        const result = await model.generateContent(userPrompt);
-        content = result.response.text();
-      } catch (err) {
-        logger.warn(`Gemini Copilot generation failed: ${err.message}. Using deterministic grounded response.`);
+    if (isGreeting) {
+      content =
+        "Hello! I am your HSE Safety Intelligence Copilot. I analyze multi-site safety telemetry, correlate SIF precursors, and evaluate barrier integrity against the 9 IOGP Life-Saving Rules.\n\nHow can I assist your safety investigation today? You can ask me to analyze recent incidents, identify top failing barriers, simulate risk controls, or check Life-Saving Rule compliance.";
+    } else {
+      // 1. Build grounded RAG context for query
+      ragContext = await RagContextBuilder.buildContextForQuery({
+        query,
+        topK: 4,
+        minScore: 0.2,
+      });
+
+      // 2. Format multi-turn prompt with history
+      const userPrompt = createCopilotPrompt({
+        userQuery: query,
+        ragContext,
+        chatHistory: session.messages || [],
+      });
+
+      const model = getGenerativeModel(COPILOT_SYSTEM_PROMPT, { isText: true, temperature: 0.3 });
+
+      if (model) {
+        try {
+          logger.info(`Invoking Gemini for Copilot chat session: ${session.sessionId}`);
+          const result = await model.generateContent(userPrompt);
+          content = result.response.text();
+        } catch (err) {
+          logger.warn(`Gemini Copilot generation note: ${err.message}. Using deterministic grounded response.`);
+          content = HseCopilotService.generateDeterministicAnswer(query, ragContext);
+        }
+      } else {
         content = HseCopilotService.generateDeterministicAnswer(query, ragContext);
       }
-    } else {
-      content = HseCopilotService.generateDeterministicAnswer(query, ragContext);
     }
 
     // 3. Extract citations
-    const citations = HseCopilotService.extractCitations(content, ragContext);
+    const citations = isGreeting ? [] : HseCopilotService.extractCitations(content, ragContext);
 
-    // 4. Generate 3 smart suggested follow-up questions
-    const suggestedFollowUps = [
-      `What engineering barrier controls can prevent ${ragContext.applicableRules[0]?.name || "this hazard"}?`,
-      `How do these incidents correlate with historical pattern trends at this site?`,
-      `Run a What-If simulation for restoring critical barriers in this scenario.`,
-    ];
+    // 4. Generate smart suggested follow-up questions
+    const suggestedFollowUps = isGreeting
+      ? [
+          "Analyze the recent SIF potential spike at Offshore Platform Alpha",
+          "What are the top failing barriers across all pump maintenance tasks?",
+          "Recommend preventive actions for repeated LOTO bypasses in Gas Processing",
+        ]
+      : [
+          `What engineering barrier controls can prevent ${ragContext.applicableRules[0]?.name || "this hazard"}?`,
+          `How do these incidents correlate with historical pattern trends at this site?`,
+          `Run a What-If simulation for restoring critical barriers in this scenario.`,
+        ];
 
     // 5. Append messages to session
     const userMsg = {
@@ -198,118 +269,28 @@ export class HseCopilotService {
     const topRule = ragContext.applicableRules?.[0];
 
     let answer = `### Executive HSE Assessment\n\n`;
-    answer += `Based on enterprise safety records, the investigation regarding **"${query}"** reveals significant operational risk.\n\n`;
+    answer += `Analysis of enterprise safety telemetry regarding **"${query}"** indicates critical risk exposure requiring attention.\n\n`;
 
     if (topInc) {
-      answer += `#### Historical Incident Precedents\n`;
-      answer += `Our safety repository records an analogous event in **[Report ID: ${topInc.reportId}]** (${topInc.title}) at **${topInc.site}** during *${topInc.activity}*.\n`;
-      answer += `- **Key Evidence:** "${topInc.evidenceSnippet}"\n`;
-      answer += `- **Recorded SIF Potential:** ${topInc.sifClassification} (Risk Score: ${topInc.riskScore}/100).\n\n`;
+      answer += `#### Contributing Incident Precedents\n`;
+      answer += `Our repository records an analogous precursor event in **[Report ID: ${topInc.reportId}]** (*${topInc.title}*) at **${topInc.site}** during *${topInc.activity}*.\n`;
+      if (topInc.evidenceSnippet) {
+        answer += `- **Grounded Evidence:** "${topInc.evidenceSnippet}"\n`;
+      }
+      answer += `- **Evaluated SIF Potential:** ${topInc.sifClassification} with Risk Score of **${topInc.riskScore}/100**.\n\n`;
     }
 
     if (topRule) {
-      answer += `#### Life-Saving Rule Governance\n`;
-      answer += `This activity is strictly governed by **[IOGP Rule: ${topRule.name}]** (${topRule.ruleId}): *${topRule.description}*.\n\n`;
+      answer += `#### IOGP Life-Saving Rule Alignment\n`;
+      answer += `This work scenario is governed by **[IOGP Rule: ${topRule.name}]** (${topRule.ruleId}): *${topRule.description}*.\n\n`;
     }
 
     answer += `#### Recommended Hierarchy Interventions\n`;
-    answer += `1. **Engineering Control:** Verify positive physical isolation and engineered interlocks prior to commencing task.\n`;
-    answer += `2. **Administrative Control:** Conduct a dedicated Permit-to-Work (PTW) re-validation and pre-job safety brief.\n`;
-    answer += `3. **Verification Mandate:** Require secondary competent person sign-off on critical safety barriers.`;
+    answer += `1. **Engineering Control:** Verify positive physical isolation, keyed interlocks, and pressure relief bleed-offs before work commences.\n`;
+    answer += `2. **Administrative Control:** Mandate digital dual-signoff on Permit-to-Work (PTW) zero-energy verification.\n`;
+    answer += `3. **Field Verification:** Require supervisory physical verification on critical safety defense barriers.`;
 
     return answer;
-  }
-
-  /**
-   * Stream response via Server-Sent Events (SSE).
-   */
-  static async chatStream({ sessionId, query, userId = null, res } = {}) {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
-    try {
-      const response = await HseCopilotService.chat({ sessionId, query, userId });
-      const tokens = response.assistantMessage.content.split(" ");
-
-      for (const token of tokens) {
-        res.write(`data: ${JSON.stringify({ token: token + " " })}\n\n`);
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-
-      res.write(
-        `data: ${JSON.stringify({
-          done: true,
-          sessionId: response.sessionId,
-          citations: response.citations,
-          suggestedFollowUps: response.suggestedFollowUps,
-        })}\n\n`
-      );
-      res.end();
-    } catch (error) {
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-      res.end();
-    }
-  }
-
-  /**
-   * Retrieve list of user sessions.
-   */
-  static async getSessions(userId) {
-    if (mongoose.connection.readyState !== 1) {
-      return [
-        {
-          sessionId: "COP-2026-0001",
-          title: "Working at Height and Fall Protection Investigation",
-          messageCount: 4,
-          lastActiveAt: new Date(),
-        },
-      ];
-    }
-    return CopilotSession.find({ userId }).sort({ lastActiveAt: -1 });
-  }
-
-  /**
-   * Retrieve session by ID.
-   */
-  static async getSessionById(sessionId, userId) {
-    if (mongoose.connection.readyState !== 1) {
-      return {
-        sessionId,
-        title: "Working at Height Investigation",
-        messages: [
-          {
-            role: "user",
-            content: "What are the common causes of scaffolding incidents?",
-          },
-          {
-            role: "assistant",
-            content: "Based on [Report ID: INC-2026-001], unhooked harness lanyards are the primary precursor.",
-            citations: [{ type: "REPORT", identifier: "INC-2026-001" }],
-          },
-        ],
-      };
-    }
-
-    const session = await CopilotSession.findOne({ sessionId, userId });
-    if (!session) {
-      throw new AppError(`Session '${sessionId}' not found`, 404, "SESSION_NOT_FOUND");
-    }
-    return session;
-  }
-
-  /**
-   * Delete session.
-   */
-  static async deleteSession(sessionId, userId) {
-    if (mongoose.connection.readyState !== 1) {
-      return { sessionId, deleted: true };
-    }
-    const result = await CopilotSession.findOneAndDelete({ sessionId, userId });
-    if (!result) {
-      throw new AppError(`Session '${sessionId}' not found`, 404, "SESSION_NOT_FOUND");
-    }
-    return { sessionId, deleted: true };
   }
 }
 

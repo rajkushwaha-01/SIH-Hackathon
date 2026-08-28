@@ -9,12 +9,16 @@ let pineconeClient = null;
 
 export const getPineconeClient = () => {
   if (!pineconeClient) {
-    if (!env.PINECONE_API_KEY || env.PINECONE_API_KEY === "mock_pinecone_api_key_for_testing") {
+    const rawKey = (process.env.PINECONE_API_KEY || env.PINECONE_API_KEY || "")
+      .trim()
+      .replace(/^['"]|['"]$/g, "");
+
+    if (!rawKey || rawKey === "mock_pinecone_api_key_for_testing" || rawKey.startsWith("mock_")) {
       logger.warn("Pinecone API key not configured or in mock mode. Using resilient in-memory vector store.");
       return null;
     }
     try {
-      pineconeClient = new Pinecone({ apiKey: env.PINECONE_API_KEY });
+      pineconeClient = new Pinecone({ apiKey: rawKey });
       logger.info("Pinecone client initialized successfully.");
     } catch (err) {
       logger.error("Failed to initialize Pinecone client:", err);

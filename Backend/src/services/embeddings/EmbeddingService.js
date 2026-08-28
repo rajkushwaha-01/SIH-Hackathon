@@ -63,19 +63,18 @@ export class EmbeddingService {
 
     const client = getGeminiClient();
 
-    // Fallback to deterministic pseudo-vector if API key is not configured or in test mode
-    if (!client || env.GOOGLE_API_KEY === "mock_google_api_key_for_testing" || env.NODE_ENV === "test") {
-      return {
-        embedding: EmbeddingService.generateDeterministicVector(text, EMBEDDING_DIMENSION),
-        dimension: EMBEDDING_DIMENSION,
-        model: "deterministic-word-embedding-004",
-      };
+    if (!client) {
+      throw new AppError(
+        "Google AI client is not configured for vector embeddings. Please ensure GOOGLE_API_KEY is set in your environment.",
+        503,
+        "EMBEDDING_SERVICE_UNAVAILABLE"
+      );
     }
 
     try {
       const embeddingModel = client.getGenerativeModel({ model: EMBEDDING_MODEL_NAME });
       const result = await embeddingModel.embedContent(text);
-      const vector = result.embedding.values;
+      const vector = result.embedding?.values;
 
       if (!vector || vector.length === 0) {
         throw new Error("Empty vector values returned by embedding model");
@@ -87,12 +86,8 @@ export class EmbeddingService {
         model: EMBEDDING_MODEL_NAME,
       };
     } catch (error) {
-      logger.warn(`Gemini embedding API failed: ${error.message}. Falling back to deterministic vector.`);
-      return {
-        embedding: EmbeddingService.generateDeterministicVector(text, EMBEDDING_DIMENSION),
-        dimension: EMBEDDING_DIMENSION,
-        model: "deterministic-word-embedding-004",
-      };
+      logger.error(`Gemini embedding API failed: ${error.message}`);
+      throw new AppError(`Vector embedding generation failed: ${error.message}`, 502, "EMBEDDING_FAILED");
     }
   }
 

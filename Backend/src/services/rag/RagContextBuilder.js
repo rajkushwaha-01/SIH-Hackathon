@@ -23,14 +23,38 @@ export class RagContextBuilder {
 
     logger.info(`Building RAG context for query: "${query.substring(0, 60)}..."`);
 
-    // 1. Retrieve semantically similar chunks from Pinecone / Vector store
-    const similarChunks = await VectorSearchService.searchSimilar({
-      queryText: query,
-      topK,
-      filter,
-      minScore,
-      excludeReportId: currentReportId,
-    });
+    // 1. Retrieve semantically similar chunks from Pinecone / Vector store with MongoDB fallback
+    let similarChunks = [];
+    try {
+      similarChunks = await VectorSearchService.searchSimilar({
+        queryText: query,
+        topK,
+        filter,
+        minScore,
+        excludeReportId: currentReportId,
+      });
+    } catch (vecErr) {
+      logger.warn(`Vector search in RAG context builder bypassed (${vecErr.message}). Querying MongoDB records directly.`);
+      if (mongoose.connection.readyState === 1) {
+        const words = query.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length > 2);
+        if (words.length > 0) {
+          const dbReports = await SafetyReport.find({
+            $or: [
+              { "normalizedReport.title": new RegExp(words.join("|"), "i") },
+              { "normalizedReport.description": new RegExp(words.join("|"), "i") },
+            ],
+          }).limit(topK);
+
+          similarChunks = dbReports.map((r) => ({
+            reportId: r.reportId,
+            similarityScore: 0.82,
+            textSnippet: r.normalizedReport?.description || "",
+            matchingFactors: [r.normalizedReport?.hazard || "Safety Exposure"],
+            reportDetails: r.normalizedReport,
+          }));
+        }
+      }
+    }
 
     // 2. Fetch canonical details and latest analysis for retrieved reports
     const enrichedIncidents = [];

@@ -8,7 +8,7 @@ let server;
 const startServer = async () => {
   try {
     logger.info("Initializing SIH-2026 SIF Precursor Detection Engine Backend...");
-    
+
     // Connect to MongoDB
     await connectDB();
 
@@ -26,7 +26,7 @@ const startServer = async () => {
 // Graceful Shutdown
 const gracefulShutdown = async (signal) => {
   logger.info(`Received ${signal}. Initiating graceful shutdown...`);
-  
+
   if (server) {
     server.close(async () => {
       logger.info("HTTP server closed.");

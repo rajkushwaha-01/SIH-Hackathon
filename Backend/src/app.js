@@ -20,16 +20,52 @@ import alertRoutes from "./routes/alert.routes.js";
 
 const app = express();
 
-// Security and HTTP headers
 app.disable("x-powered-by");
 
-// Enable CORS
+// -------------------------
+// CORS
+// -------------------------
+
+const allowedOrigins = env.CORS_ORIGIN
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN === "*" ? "*" : env.CORS_ORIGIN.split(",").map((o) => o.trim()),
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header
+      // (Postman, server-to-server, health checks, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(
+        new Error(`CORS blocked request from origin: ${origin}`)
+      );
+    },
+
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
+
     credentials: true,
+
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -46,11 +82,16 @@ app.use("/api", apiLimiter);
 // API Routes
 app.use("/", healthRoutes);
 app.use("/api", healthRoutes);
+
 app.use("/api/auth", authRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/analysis", analysisRoutes);
 app.use("/api/precursors", precursorRoutes);
+
 app.use("/api/life-saving-rules", lifeSavingRuleRoutes);
+app.use("/api/rules", lifeSavingRuleRoutes);
+app.use("/api/lifeSavingRules", lifeSavingRuleRoutes);
+
 app.use("/api/search", searchRoutes);
 app.use("/api/patterns", patternRoutes);
 app.use("/api/graph", graphRoutes);
@@ -59,10 +100,10 @@ app.use("/api/copilot", copilotRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/alerts", alertRoutes);
 
-// 404 Catch-All Handler
+// 404
 app.use(notFoundHandler);
 
-// Centralized Error Handler
+// Error Handler
 app.use(errorHandler);
 
 export default app;

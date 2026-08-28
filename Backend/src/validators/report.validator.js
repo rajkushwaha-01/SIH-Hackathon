@@ -68,8 +68,16 @@ export const reportQuerySchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
 });
 
+export const reanalyzeSchema = z
+  .object({
+    force: z.boolean().optional().default(false),
+    model: z.string().optional(),
+  })
+  .optional();
+
 export default {
   createReportSchema,
   updateReportSchema,
   reportQuerySchema,
+  reanalyzeSchema,
 };

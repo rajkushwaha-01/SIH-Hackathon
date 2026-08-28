@@ -102,16 +102,13 @@ export class GeminiService {
     const startTime = Date.now();
     const model = getGenerativeModel(REPORT_EXTRACTION_SYSTEM_PROMPT);
 
-    // Fallback to deterministic extraction if Gemini client is unavailable
+    // Throw error if Gemini client is unavailable (Rule 20: No Silent Fallback)
     if (!model) {
-      logger.info(`Running deterministic mock extraction for report ${report.reportId}`);
-      const mockResult = GeminiService.generateMockExtraction(report);
-      const validated = nlpExtractionSchema.parse(mockResult);
-      return {
-        data: validated,
-        executionTimeMs: Date.now() - startTime,
-        model: "deterministic-mock-engine",
-      };
+      throw new AppError(
+        "Gemini AI client is not configured. Please ensure GOOGLE_API_KEY is set in your environment.",
+        503,
+        "AI_SERVICE_UNAVAILABLE"
+      );
     }
 
     const userPrompt = createExtractionUserPrompt(report);
@@ -142,13 +139,12 @@ export class GeminiService {
         logger.warn(`Gemini extraction attempt ${attempts} failed for ${report.reportId}: ${error.message}`);
         
         if (attempts >= maxRetries) {
-          logger.error(`Exceeded maximum retries (${maxRetries}) for report ${report.reportId}. Using deterministic fallback.`);
-          const fallbackData = GeminiService.generateMockExtraction(report);
-          return {
-            data: nlpExtractionSchema.parse(fallbackData),
-            executionTimeMs: Date.now() - startTime,
-            model: "gemini-fallback-engine",
-          };
+          logger.error(`Exceeded maximum retries (${maxRetries}) for report ${report.reportId}.`);
+          throw new AppError(
+            `Gemini AI extraction failed after ${maxRetries} attempts: ${error.message}`,
+            502,
+            "AI_EXTRACTION_FAILED"
+          );
         }
 
         // Exponential backoff wait

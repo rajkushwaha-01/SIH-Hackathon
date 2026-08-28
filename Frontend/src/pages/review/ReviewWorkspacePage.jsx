@@ -54,56 +54,19 @@ export default function ReviewWorkspacePage() {
     setError(null);
     try {
       const res = await reportsService.getReportDetail(id);
-      if (res) {
+      if (res && res.report) {
         setDetailData(res);
         const aiSif = res.latestAnalysis?.sifClassification?.classification || 'SIF_POTENTIAL';
         setDecision(aiSif);
-        setRiskScoreOverride(res.latestAnalysis?.riskScore?.score || 82);
+        setRiskScoreOverride(res.latestAnalysis?.riskScore?.score || 50);
       } else {
-        throw new Error('No data returned');
+        setError(`Safety report '${id}' was not found in database for review.`);
+        setDetailData(null);
       }
     } catch (err) {
-      // Fallback default review scenario
-      setDetailData({
-        report: {
-          reportId: id || 'REP-2023-11-042',
-          title: 'Routine Maintenance Interlock Bypass on Line 4',
-          description:
-            'During routine maintenance on Line 4, a technician was observed bypassing the main interlock system to adjust the drive belt. The machine was technically powered down at the local disconnect, but Lockout/Tagout (LOTO) procedures were not fully applied at the main breaker. The technician stated it was a "quick adjustment" that didn\'t warrant a full LOTO.',
-          site: 'Manufacturing Facility Alpha, Sector 3, Line 4',
-          personnel: 'Maintenance Technician (Level 2)',
-          immediateAction:
-            'Supervisor halted work immediately. Full LOTO procedure initiated before work resumed. Technician sent for retraining on energy isolation protocols.',
-        },
-        latestAnalysis: {
-          sifClassification: {
-            classification: 'SIF_POTENTIAL',
-            confidence: 0.89,
-          },
-          riskScore: {
-            score: 82,
-            level: 'CRITICAL',
-          },
-          precursors: [
-            {
-              name: 'LOTO Bypass / Isolation Failure',
-              description: 'Failure to properly isolate hazardous energy sources before intervention.',
-              severity: 'CRITICAL',
-            },
-            {
-              name: 'Normalization of Deviance',
-              description: 'Language ("quick adjustment") suggests routine circumvention of safety protocols.',
-              severity: 'HIGH',
-            },
-          ],
-          evidenceQuotes: [
-            '...bypassing the main interlock system...',
-            '...Lockout/Tagout (LOTO) procedures were not fully applied at the main breaker...',
-          ],
-        },
-      });
-      setDecision('SIF_POTENTIAL');
-      setRiskScoreOverride(82);
+      console.error('Failed to load review workspace report:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to load report for human review');
+      setDetailData(null);
     } finally {
       setLoading(false);
     }

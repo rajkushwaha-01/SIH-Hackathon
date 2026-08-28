@@ -19,6 +19,7 @@ router.use(authenticate);
 
 // Run counterfactual What-If risk simulation
 router.post("/simulate", validateBody(runSimulationSchema), runSimulation);
+router.post("/evaluate", validateBody(runSimulationSchema), runSimulation);
 
 // Get simulation history
 router.get("/", getSimulations);

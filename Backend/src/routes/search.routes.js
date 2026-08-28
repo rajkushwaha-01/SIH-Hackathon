@@ -7,7 +7,10 @@ const router = Router();
 // All search endpoints require authentication
 router.use(authenticate);
 
-// Semantic similarity search with filters
+// Semantic similarity search with filters (supports both POST and GET)
 router.post("/semantic", semanticSearch);
+router.get("/semantic", semanticSearch);
+router.post("/", semanticSearch);
+router.get("/", semanticSearch);
 
 export default router;

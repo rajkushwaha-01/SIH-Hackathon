@@ -33,12 +33,12 @@ export const getHealth = (req, res) => {
       },
       aiModel: {
         model: env.GEMINI_MODEL,
-        status: env.GOOGLE_API_KEY && env.GOOGLE_API_KEY !== "mock_google_api_key_for_testing" ? "CONFIGURED" : "MOCK_MODE",
+        status: env.GOOGLE_API_KEY && env.GOOGLE_API_KEY !== "mock_google_api_key_for_testing" ? "CONFIGURED" : "NOT_CONFIGURED",
       },
       vectorDb: {
         index: env.PINECONE_INDEX,
         namespace: env.PINECONE_NAMESPACE,
-        status: env.PINECONE_API_KEY && env.PINECONE_API_KEY !== "mock_pinecone_api_key_for_testing" ? "CONFIGURED" : "MOCK_MODE",
+        status: env.PINECONE_API_KEY && env.PINECONE_API_KEY !== "mock_pinecone_api_key_for_testing" ? "CONFIGURED" : "NOT_CONFIGURED",
       },
     },
     system: {
@@ -52,7 +52,7 @@ export const getHealth = (req, res) => {
     },
   };
 
-  const statusCode = dbState === 1 || env.NODE_ENV === "test" ? 200 : 503;
+  const statusCode = dbState === 1 || env.NODE_ENV !== "production" ? 200 : 503;
   return sendSuccess(res, healthData, "System health status retrieved successfully", statusCode);
 };
 

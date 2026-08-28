@@ -7,15 +7,24 @@ import { logger } from "../../utils/logger.js";
 
 export class PatternDetectionService {
   /**
+   * Check if MongoDB is connected; throw error if offline (Rule 20: No Silent Fallback).
+   */
+  static verifyDbConnection() {
+    if (mongoose.connection.readyState !== 1) {
+      throw new AppError(
+        "Database is offline or disconnected. Cannot perform pattern mining.",
+        503,
+        "DATABASE_DISCONNECTED"
+      );
+    }
+  }
+
+  /**
    * Mine and discover multi-dimensional recurring safety patterns across all analyzed reports.
    */
   static async mineRecurringPatterns() {
-    logger.info("Starting multi-dimensional safety pattern detection analysis...");
-
-    if (mongoose.connection.readyState !== 1) {
-      logger.warn("MongoDB not connected; returning synthetic pattern evaluation for testing.");
-      return PatternDetectionService.getMockPatterns();
-    }
+    PatternDetectionService.verifyDbConnection();
+    logger.info("Starting multi-dimensional safety pattern detection analysis from MongoDB...");
 
     const latestAnalyses = await Analysis.find({ isLatest: true });
     if (!latestAnalyses || latestAnalyses.length === 0) {
@@ -36,152 +45,139 @@ export class PatternDetectionService {
 
     for (const analysis of latestAnalyses) {
       const report = reportMap.get(analysis.reportId);
-      const site = report?.normalizedReport?.site || "General Site";
-      const activity = report?.normalizedReport?.activity || "General Activity";
-      const isSif = analysis.sifClassification?.classification === "SIF_POTENTIAL";
+      const site = report?.normalizedReport?.site || "All Sites";
+      const activity = report?.normalizedReport?.activity || analysis.nlpExtraction?.activity || "General Operations";
+      const precursors = analysis.precursors?.map((p) => p.type) || [];
+      const failedBarriers =
+        analysis.nlpExtraction?.barriers
+          ?.filter((b) => b.status === "FAILED" || b.status === "MISSING")
+          ?.map((b) => b.name) || [];
 
-      const precursors = (analysis.precursors || []).map((p) => p.type);
-      const failedBarriers = (analysis.nlpExtraction?.barriers || [])
-        .filter((b) => b.status === "FAILED" || b.status === "MISSING")
-        .map((b) => b.name);
-
-      // Dimension Tuple 1: Site + Precursor
-      for (const precursor of precursors) {
-        const key = `SITE_PREC:${site}|${precursor}`;
+      // 1. Cluster by Site + Activity + Precursor
+      for (const prec of precursors) {
+        const key = `${site}::${activity}::${prec}`;
         if (!clusters.has(key)) {
           clusters.set(key, {
-            type: "SITE_PRECURSOR",
+            type: "SITE_ACTIVITY_PRECURSOR",
             site,
-            activity: "",
-            precursor,
-            failedBarrier: "",
-            reportIds: [],
-            sifCount: 0,
-          });
-        }
-        const cluster = clusters.get(key);
-        cluster.reportIds.push(analysis.reportId);
-        if (isSif) cluster.sifCount++;
-      }
-
-      // Dimension Tuple 2: Activity + Precursor
-      for (const precursor of precursors) {
-        const key = `ACT_PREC:${activity}|${precursor}`;
-        if (!clusters.has(key)) {
-          clusters.set(key, {
-            type: "ACTIVITY_PRECURSOR",
-            site: "",
             activity,
-            precursor,
-            failedBarrier: "",
+            precursor: prec,
+            barrier: failedBarriers[0] || null,
             reportIds: [],
             sifCount: 0,
+            analyses: [],
           });
         }
         const cluster = clusters.get(key);
         cluster.reportIds.push(analysis.reportId);
-        if (isSif) cluster.sifCount++;
+        cluster.analyses.push(analysis);
+        if (analysis.sifClassification?.classification === "SIF_POTENTIAL") {
+          cluster.sifCount++;
+        }
       }
 
-      // Dimension Tuple 3: Failed Barrier + Precursor
-      for (const barrier of failedBarriers) {
-        for (const precursor of precursors) {
-          const key = `BARRIER_PREC:${barrier}|${precursor}`;
+      // 2. Cluster by Precursor + Failed Barrier across all sites
+      for (const prec of precursors) {
+        for (const barrier of failedBarriers) {
+          const key = `SYSTEMIC::${prec}::${barrier}`;
           if (!clusters.has(key)) {
             clusters.set(key, {
-              type: "BARRIER_PRECURSOR",
-              site: "",
-              activity: "",
-              precursor,
-              failedBarrier: barrier,
+              type: "SYSTEMIC_BARRIER_FAILURE",
+              site: "Multiple Sites",
+              activity: "Cross-Functional",
+              precursor: prec,
+              barrier,
               reportIds: [],
               sifCount: 0,
+              analyses: [],
             });
           }
           const cluster = clusters.get(key);
-          cluster.reportIds.push(analysis.reportId);
-          if (isSif) cluster.sifCount++;
+          if (!cluster.reportIds.includes(analysis.reportId)) {
+            cluster.reportIds.push(analysis.reportId);
+            cluster.analyses.push(analysis);
+            if (analysis.sifClassification?.classification === "SIF_POTENTIAL") {
+              cluster.sifCount++;
+            }
+          }
         }
       }
     }
 
     const discoveredPatterns = [];
-    let patternIndex = 1;
 
-    for (const [key, data] of clusters.entries()) {
-      const uniqueReportIds = Array.from(new Set(data.reportIds));
-      const incidentCount = uniqueReportIds.length;
+    // Filter clusters with >= 2 occurrences to establish recurrence pattern
+    for (const [key, cluster] of clusters.entries()) {
+      if (cluster.reportIds.length >= 2) {
+        const incidentCount = cluster.reportIds.length;
+        const sifRate = Math.round((cluster.sifCount / incidentCount) * 100);
 
-      // Minimum threshold: at least 2 incident reports to form a recurring pattern
-      if (incidentCount >= 2) {
-        const sifRate = Math.round((data.sifCount / incidentCount) * 100);
+        let severity = "LOW";
+        if (sifRate >= 70 || cluster.sifCount >= 3) severity = "CRITICAL";
+        else if (sifRate >= 40 || cluster.sifCount >= 2) severity = "HIGH";
+        else if (sifRate >= 20 || incidentCount >= 3) severity = "MEDIUM";
 
-        let severity = "MEDIUM";
-        if (data.sifCount >= 2) {
-          severity = "CRITICAL";
-        } else if (data.sifCount >= 1 || incidentCount >= 3) {
-          severity = "HIGH";
-        }
+        const confidence = parseFloat((0.75 + Math.min(0.2, (incidentCount - 2) * 0.05) + (sifRate > 50 ? 0.04 : 0)).toFixed(2));
 
-        const confidence = parseFloat(Math.min(0.98, 0.7 + incidentCount * 0.05).toFixed(2));
+        const commonFactors = [
+          `Precursor: ${cluster.precursor}`,
+          cluster.barrier ? `Recurring Failed Barrier: ${cluster.barrier}` : null,
+          cluster.site !== "Multiple Sites" ? `Concentration at location: ${cluster.site}` : "Systemic multi-site occurrence",
+          cluster.activity !== "Cross-Functional" ? `High frequency during: ${cluster.activity}` : null,
+        ].filter(Boolean);
 
-        let patternName = "";
-        const commonFactors = [`Precursor: ${data.precursor}`];
-        const interventions = [];
-
-        if (data.type === "SITE_PRECURSOR") {
-          patternName = `Recurring ${data.precursor.replace(/_/g, " ")} Cluster at ${data.site}`;
-          commonFactors.push(`Concentration at location: ${data.site}`);
-          interventions.push({
-            action: `Perform site-wide safety stand-down and inspection for ${data.precursor} at ${data.site}`,
-            hierarchyLevel: "ADMINISTRATIVE",
-          });
-        } else if (data.type === "ACTIVITY_PRECURSOR") {
-          patternName = `Systemic ${data.precursor.replace(/_/g, " ")} Risk during ${data.activity}`;
-          commonFactors.push(`Activity hazard pattern: ${data.activity}`);
-          interventions.push({
-            action: `Revise Standard Operating Procedure (SOP) and JSA for ${data.activity}`,
-            hierarchyLevel: "ADMINISTRATIVE",
-          });
-        } else {
-          patternName = `Repeated Barrier Failure: ${data.failedBarrier} linked to ${data.precursor.replace(/_/g, " ")}`;
-          commonFactors.push(`Critical barrier breakdown: ${data.failedBarrier}`);
-          interventions.push({
-            action: `Implement engineered interlocks and verification protocol for ${data.failedBarrier}`,
+        const recommendedInterventions = [];
+        if (cluster.barrier) {
+          recommendedInterventions.push({
+            action: `Initiate mandatory engineering barrier audit and verification protocol for '${cluster.barrier}' across all ${cluster.activity} permits.`,
             hierarchyLevel: "ENGINEERING",
           });
         }
+        if (cluster.site !== "Multiple Sites") {
+          recommendedInterventions.push({
+            action: `Perform site-wide safety stand-down and inspection for ${cluster.precursor} at ${cluster.site}.`,
+            hierarchyLevel: "ADMINISTRATIVE",
+          });
+        } else {
+          recommendedInterventions.push({
+            action: `Issue enterprise safety advisory across all business units for recurring ${cluster.precursor} exposures.`,
+            hierarchyLevel: "PROCEDURAL",
+          });
+        }
 
-        const patternId = `PAT-${new Date().getFullYear()}-${String(patternIndex++).padStart(3, "0")}`;
+        const patternId = `PAT-${new Date().getFullYear()}-${discoveredPatterns.length + 1}`;
+        const name =
+          cluster.type === "SYSTEMIC_BARRIER_FAILURE"
+            ? `Systemic ${cluster.precursor.replace(/_/g, " ")} & ${cluster.barrier} Degradation`
+            : `Recurring ${cluster.precursor.replace(/_/g, " ")} Cluster at ${cluster.site}`;
 
         const patternDoc = await Pattern.findOneAndUpdate(
           {
-            "dimensions.site": data.site,
-            "dimensions.activity": data.activity,
-            "dimensions.precursor": data.precursor,
-            "dimensions.failedBarrier": data.failedBarrier,
+            "dimensions.site": cluster.site,
+            "dimensions.precursor": cluster.precursor,
+            "dimensions.failedBarrier": cluster.barrier,
           },
           {
-            $set: {
-              patternId,
-              name: patternName,
-              dimensions: {
-                site: data.site,
-                activity: data.activity,
-                precursor: data.precursor,
-                failedBarrier: data.failedBarrier,
-              },
-              incidentCount,
-              sifPotentialCount: data.sifCount,
-              sifRate,
-              severity,
-              confidence,
-              sampleReportIds: uniqueReportIds.slice(0, 5),
-              commonFactors,
-              recommendedInterventions: interventions,
-              status: "ACTIVE",
-              lastSeenAt: new Date(),
+            patternId,
+            name,
+            description: `Identified ${incidentCount} correlated incidents involving ${cluster.precursor} with ${sifRate}% SIF potential rate.`,
+            dimensions: {
+              site: cluster.site,
+              activity: cluster.activity,
+              precursor: cluster.precursor,
+              failedBarrier: cluster.barrier,
             },
+            incidentCount,
+            sifPotentialCount: cluster.sifCount,
+            sifRate,
+            severity,
+            confidence,
+            sampleReportIds: cluster.reportIds.slice(0, 5),
+            commonFactors,
+            recommendedInterventions,
+            status: "ACTIVE",
+            firstDetectedAt: new Date(),
+            lastUpdatedAt: new Date(),
           },
           { upsert: true, new: true }
         );
@@ -195,44 +191,10 @@ export class PatternDetectionService {
   }
 
   /**
-   * Return mock pattern dataset for testing when database is offline.
-   */
-  static getMockPatterns() {
-    return [
-      {
-        patternId: "PAT-2026-001",
-        name: "Recurring WORKING AT HEIGHT Cluster at Offshore Platform Alpha",
-        dimensions: {
-          site: "Offshore Platform Alpha",
-          activity: "Scaffolding",
-          precursor: "WORKING_AT_HEIGHT",
-          failedBarrier: "100% Fall Arrest Harness",
-        },
-        incidentCount: 4,
-        sifPotentialCount: 3,
-        sifRate: 75,
-        severity: "CRITICAL",
-        confidence: 0.92,
-        sampleReportIds: ["INC-001", "INC-002", "INC-004"],
-        commonFactors: ["Precursor: WORKING_AT_HEIGHT", "Concentration at location: Offshore Platform Alpha"],
-        recommendedInterventions: [
-          {
-            action: "Perform site-wide safety stand-down and inspection for WORKING_AT_HEIGHT at Offshore Platform Alpha",
-            hierarchyLevel: "ADMINISTRATIVE",
-          },
-        ],
-        status: "ACTIVE",
-      },
-    ];
-  }
-
-  /**
-   * Retrieve active safety patterns with optional filters.
+   * Retrieve active safety patterns with optional filters from MongoDB.
    */
   static async getPatterns(filters = {}) {
-    if (mongoose.connection.readyState !== 1) {
-      return PatternDetectionService.getMockPatterns();
-    }
+    PatternDetectionService.verifyDbConnection();
 
     const query = {};
     if (filters.status) query.status = filters.status;
@@ -240,34 +202,27 @@ export class PatternDetectionService {
     if (filters.site) query["dimensions.site"] = filters.site;
     if (filters.precursor) query["dimensions.precursor"] = filters.precursor;
 
-    const patterns = await Pattern.find(query).sort({ severity: 1, incidentCount: -1 });
-    return patterns.length > 0 ? patterns : PatternDetectionService.getMockPatterns();
+    return Pattern.find(query).sort({ severity: 1, incidentCount: -1 });
   }
 
   /**
-   * Retrieve pattern by ID.
+   * Retrieve pattern by ID from MongoDB.
    */
   static async getPatternById(patternId = "") {
-    if (mongoose.connection.readyState !== 1) {
-      const mock = PatternDetectionService.getMockPatterns().find((p) => p.patternId === patternId);
-      if (mock) return mock;
-      throw new AppError(`Pattern '${patternId}' was not found`, 404, "PATTERN_NOT_FOUND");
-    }
+    PatternDetectionService.verifyDbConnection();
 
     const pattern = await Pattern.findOne({ patternId });
     if (!pattern) {
-      throw new AppError(`Pattern '${patternId}' was not found`, 404, "PATTERN_NOT_FOUND");
+      throw new AppError(`Pattern '${patternId}' was not found in database`, 404, "PATTERN_NOT_FOUND");
     }
     return pattern;
   }
 
   /**
-   * Update pattern status.
+   * Update pattern status in MongoDB.
    */
   static async updateStatus(patternId, status) {
-    if (mongoose.connection.readyState !== 1) {
-      return { patternId, status, updated: true };
-    }
+    PatternDetectionService.verifyDbConnection();
 
     const pattern = await Pattern.findOneAndUpdate(
       { patternId },
@@ -276,7 +231,7 @@ export class PatternDetectionService {
     );
 
     if (!pattern) {
-      throw new AppError(`Pattern '${patternId}' was not found`, 404, "PATTERN_NOT_FOUND");
+      throw new AppError(`Pattern '${patternId}' was not found in database`, 404, "PATTERN_NOT_FOUND");
     }
 
     return pattern;

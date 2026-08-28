@@ -11,7 +11,7 @@ export const OFFICIAL_IOGP_RULES = [
     version: IOGP_VERSION,
     description: "Obtain authorization before overriding or disabling safety controls.",
     source: IOGP_REPORT_CITATION,
-    sourceUrl: IOGP_SOURCE_URL,
+    sourceUrl: IOGP_SOURCE_URL, 
     applicablePrecursors: ["ISOLATION_FAILURE", "PRESSURE_RELEASE", "HOT_WORK"],
     applicableHazards: ["Defeated Interlocks", "Bridged Alarms", "Overridden PRVs", "Inhibited ESDVs"],
     mandatoryActions: [
@@ -168,9 +168,12 @@ export const OFFICIAL_IOGP_RULES = [
   },
 ];
 
+export const IOGP_LIFE_SAVING_RULES = OFFICIAL_IOGP_RULES;
+
 export default {
   IOGP_REPORT_CITATION,
   IOGP_SOURCE_URL,
   IOGP_VERSION,
   OFFICIAL_IOGP_RULES,
+  IOGP_LIFE_SAVING_RULES,
 };

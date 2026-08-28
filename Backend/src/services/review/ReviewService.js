@@ -9,16 +9,27 @@ import { logger } from "../../utils/logger.js";
 
 export class ReviewService {
   /**
-   * Assemble unified 360-degree report detail payload.
+   * Check if MongoDB is connected; throw error if offline (Rule 20: No Silent Fallback).
+   */
+  static verifyDbConnection() {
+    if (mongoose.connection.readyState !== 1) {
+      throw new AppError(
+        "Database is offline or disconnected. Cannot query review records.",
+        503,
+        "DATABASE_DISCONNECTED"
+      );
+    }
+  }
+
+  /**
+   * Assemble unified 360-degree report detail payload directly from MongoDB.
    */
   static async getReportDetail(reportId) {
-    if (mongoose.connection.readyState !== 1) {
-      return ReviewService.getMockReportDetail(reportId);
-    }
+    ReviewService.verifyDbConnection();
 
     const report = await SafetyReport.findOne({ reportId });
     if (!report) {
-      throw new AppError(`Safety report '${reportId}' not found`, 404, "REPORT_NOT_FOUND");
+      throw new AppError(`Safety report '${reportId}' not found in database`, 404, "REPORT_NOT_FOUND");
     }
 
     const latestAnalysis = await Analysis.findOne({ reportId, isLatest: true });
@@ -45,7 +56,7 @@ export class ReviewService {
   }
 
   /**
-   * Submit human-in-the-loop review decision or override.
+   * Submit human-in-the-loop review decision or override directly to MongoDB.
    */
   static async submitReview({
     reportId,
@@ -57,17 +68,8 @@ export class ReviewService {
     justification,
     user = null,
   } = {}) {
+    ReviewService.verifyDbConnection();
     logger.info(`Processing HSE review for report ${reportId}: Decision = ${decision}`);
-
-    if (mongoose.connection.readyState !== 1) {
-      return {
-        reportId,
-        decision,
-        reviewStatus: decision === "APPROVE" ? "APPROVED" : decision === "REJECT" ? "REJECTED" : "OVERRIDDEN",
-        justification,
-        updatedAt: new Date(),
-      };
-    }
 
     const report = await SafetyReport.findOne({ reportId });
     if (!report) {
@@ -111,13 +113,13 @@ export class ReviewService {
       await latestAnalysis.save();
 
       // 2. Compute next sequential version string (e.g. v1 -> v2)
-      const currentVerNum = parseInt(latestAnalysis.version.replace("v", ""), 10) || 1;
+      const currentVerNum = parseInt(latestAnalysis.version?.replace?.("v", "") || "1", 10) || 1;
       const nextVersion = `v${currentVerNum + 1}`;
 
       // 3. Clone and apply overrides
-      const updatedExtraction = JSON.parse(JSON.stringify(latestAnalysis.nlpExtraction));
-      let updatedPrecursors = JSON.parse(JSON.stringify(latestAnalysis.precursors));
-      const updatedSif = JSON.parse(JSON.stringify(latestAnalysis.sifClassification));
+      const updatedExtraction = JSON.parse(JSON.stringify(latestAnalysis.nlpExtraction || {}));
+      let updatedPrecursors = JSON.parse(JSON.stringify(latestAnalysis.precursors || []));
+      const updatedSif = JSON.parse(JSON.stringify(latestAnalysis.sifClassification || {}));
 
       if (overrideSifClassification) {
         updatedSif.classification = overrideSifClassification;
@@ -136,6 +138,7 @@ export class ReviewService {
       }
 
       // Barrier overrides
+      if (!updatedExtraction.barriers) updatedExtraction.barriers = [];
       for (const bOverride of overrideBarriers) {
         const barrier = updatedExtraction.barriers.find((b) => b.name.toLowerCase() === bOverride.name.toLowerCase());
         if (barrier) {
@@ -194,7 +197,7 @@ export class ReviewService {
       action = "HUMAN_OVERRIDE_APPLIED";
     }
 
-    // 5. Log audit trail entry
+    // 5. Log audit trail entry in MongoDB
     const auditEntry = new AuditTrail({
       auditId,
       entityType: "REPORT",
@@ -231,55 +234,11 @@ export class ReviewService {
   }
 
   /**
-   * Retrieve chronological audit log for entity.
+   * Retrieve chronological audit log for entity from MongoDB.
    */
   static async getAuditTrail(entityId) {
-    if (mongoose.connection.readyState !== 1) {
-      return [
-        {
-          auditId: "AUD-2026-0001",
-          entityType: "REPORT",
-          entityId,
-          action: "AI_ANALYSIS_COMPLETED",
-          performedByName: "Gemini AI NLP Pipeline",
-          performedByRole: "SYSTEM",
-          createdAt: new Date(),
-        },
-      ];
-    }
+    ReviewService.verifyDbConnection();
     return AuditTrail.find({ entityId }).sort({ createdAt: -1 });
-  }
-
-  /**
-   * Mock report detail for testing/offline mode.
-   */
-  static getMockReportDetail(reportId) {
-    return {
-      report: {
-        reportId,
-        title: "Mock Incident Report",
-        reviewStatus: "PENDING_REVIEW",
-      },
-      latestAnalysis: {
-        analysisId: `ANA-${reportId}-v1`,
-        version: "v1",
-        isLatest: true,
-        humanReviewed: false,
-        sifClassification: { classification: "SIF_POTENTIAL" },
-        riskScore: { score: 75, level: "HIGH" },
-      },
-      reviewStatus: "PENDING_REVIEW",
-      versionCount: 1,
-      versionHistory: [{ version: "v1", isLatest: true, riskScore: 75 }],
-      auditTrail: [
-        {
-          auditId: "AUD-2026-0001",
-          action: "AI_ANALYSIS_COMPLETED",
-          performedByName: "System AI Pipeline",
-        },
-      ],
-      alerts: [],
-    };
   }
 }
 

@@ -71,62 +71,12 @@ export default function SimilarIncidentsPage() {
       };
 
       const res = await searchService.semanticSearch(payload);
-      if (res && res.results && res.results.length > 0) {
-        setResults(res.results);
-      } else {
-        // Fallback rich seeded similarity results
-        const mockMatches = [
-          {
-            reportId: 'INC-2026-003',
-            id: 'INC-2026-003',
-            title: 'Toxic H2S Gas Pocket Breakthrough During Line Breaking',
-            text: 'During scheduled maintenance on crude desalter separator unit, pipefitters unbolted a 6-inch flange without full atmospheric gas testing. A trapped pocket of hydrogen sulfide (H2S) was released.',
-            site: 'Refinery Unit 4',
-            similarity: 0.94,
-            riskScore: 85,
-            sifPotential: 'SIF_POTENTIAL',
-            factors: ['Toxic Gas Exposure (H2S)', 'Missing Gas Verification', 'Line Breaking'],
-          },
-          {
-            reportId: 'INC-0942',
-            id: 'INC-0942',
-            title: 'Sour Water Stripper Flange Separation Without Chemical Mask',
-            text: 'Maintenance crew disconnected valve without wearing positive-pressure air supply; H2S monitor alarmed at 45 ppm.',
-            site: 'Refinery Unit 4',
-            similarity: 0.88,
-            riskScore: 79,
-            sifPotential: 'SIF_POTENTIAL',
-            factors: ['H2S Exposure', 'PPE Non-Compliance'],
-          },
-          {
-            reportId: 'NM-0811',
-            id: 'NM-0811',
-            title: 'Atmospheric Gas Testing Delay During Flare Line Maintenance',
-            text: 'Permit issuer delayed sensor verification by 45 minutes; residual hydrocarbons detected upon flange loosening.',
-            site: 'Petrochemical Complex Gamma',
-            similarity: 0.76,
-            riskScore: 68,
-            sifPotential: 'NEEDS_REVIEW',
-            factors: ['Atmospheric Testing', 'Permit Verification'],
-          },
-        ];
-        setResults(mockMatches);
-      }
+      const resultsList = res?.results || res?.data?.results || (Array.isArray(res) ? res : []);
+      setResults(resultsList);
     } catch (err) {
-      console.warn('Vector search fallback:', err);
-      setResults([
-        {
-          reportId: 'INC-2026-003',
-          id: 'INC-2026-003',
-          title: 'Toxic H2S Gas Pocket Breakthrough During Line Breaking',
-          text: 'During scheduled maintenance on crude desalter separator unit, pipefitters unbolted a 6-inch flange without full atmospheric gas testing.',
-          site: 'Refinery Unit 4',
-          similarity: 0.94,
-          riskScore: 85,
-          sifPotential: 'SIF_POTENTIAL',
-          factors: ['Toxic Gas Exposure (H2S)', 'Line Breaking'],
-        },
-      ]);
+      console.error('Vector search error:', err);
+      setError(err?.response?.data?.message || err?.message || 'Semantic vector search failed');
+      setResults([]);
     } finally {
       setLoading(false);
     }

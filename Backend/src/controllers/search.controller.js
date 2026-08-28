@@ -6,7 +6,10 @@ import { sendSuccess } from "../utils/apiResponse.js";
 
 export const semanticSearch = async (req, res, next) => {
   try {
-    const { query, topK = 5, minScore = 0.4, filters = {} } = req.body;
+    const query = req.body?.query || req.query?.query || req.query?.q;
+    const topK = req.body?.topK || req.query?.topK || 5;
+    const minScore = req.body?.minScore || req.query?.minScore || 0.4;
+    const filters = req.body?.filters || {};
 
     if (!query || typeof query !== "string" || !query.trim()) {
       throw new AppError("Search query string is required", 400, "INVALID_QUERY");

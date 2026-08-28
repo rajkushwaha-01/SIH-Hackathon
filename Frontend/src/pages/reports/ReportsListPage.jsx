@@ -69,132 +69,13 @@ export default function ReportsListPage() {
         limit: 10,
       });
 
-      if (res.reports && res.reports.length > 0) {
-        setReports(res.reports);
-        setPagination(res.pagination || { total: res.reports.length, page: filters.page, limit: 10, totalPages: 1 });
-      } else {
-        // Fallback seeded mock records if database is empty
-        const mockReports = [
-          {
-            _id: 'rep-001',
-            reportId: 'INC-2026-001',
-            title: 'Unsecured Scaffolding Planks at 8m Elevation',
-            description: 'During structural painting on offshore Module B at 8.2 meters elevation, an unclipped scaffolding plank shifted when stepped on. Technician slipped and fell into dual-lanyard harness.',
-            site: 'Offshore Platform Alpha',
-            eventDate: '2026-01-14T09:30:00Z',
-            reportType: 'NEAR_MISS',
-            activity: 'Work at Height',
-            hazard: 'Fall from Height',
-            sifPotential: 'SIF_POTENTIAL',
-            confidence: 0.89,
-            riskScore: 82,
-            riskLevel: 'CRITICAL',
-          },
-          {
-            _id: 'rep-002',
-            reportId: 'INC-2026-002',
-            title: '440V Motor Control Center Arc Flash Near Miss',
-            description: 'An electrician opened a 440V Motor Control Center (MCC) switchboard panel without applying Lockout/Tagout (LOTO) or verifying zero electrical energy.',
-            site: 'Refinery Unit 4',
-            eventDate: '2026-01-18T14:15:00Z',
-            reportType: 'INCIDENT',
-            activity: 'Electrical Maintenance',
-            hazard: 'High Voltage Arc Flash',
-            sifPotential: 'SIF_POTENTIAL',
-            confidence: 0.94,
-            riskScore: 88,
-            riskLevel: 'CRITICAL',
-          },
-          {
-            _id: 'rep-003',
-            reportId: 'INC-2026-003',
-            title: 'Toxic H2S Gas Pocket Breakthrough During Line Breaking',
-            description: 'During scheduled maintenance on crude desalter separator unit, pipefitters unbolted a 6-inch flange without full atmospheric gas testing.',
-            site: 'Refinery Unit 4',
-            eventDate: '2026-01-22T11:00:00Z',
-            reportType: 'INCIDENT',
-            activity: 'Line Breaking',
-            hazard: 'Toxic Gas Exposure (H2S)',
-            sifPotential: 'SIF_POTENTIAL',
-            confidence: 0.91,
-            riskScore: 85,
-            riskLevel: 'CRITICAL',
-          },
-          {
-            _id: 'rep-004',
-            reportId: 'INC-2026-004',
-            title: 'Suspended 4-Ton Heat Exchanger Swing Over Walkway',
-            description: 'A 4-ton tubular heat exchanger bundle was hoisted by mobile crane across a designated pedestrian walkway. Guide tag-line snapped under wind gust.',
-            site: 'Chemical Terminal B',
-            eventDate: '2026-02-02T16:45:00Z',
-            reportType: 'NEAR_MISS',
-            activity: 'Heavy Crane Lifting',
-            hazard: 'Line-of-Fire / Suspended Load',
-            sifPotential: 'SIF_POTENTIAL',
-            confidence: 0.86,
-            riskScore: 78,
-            riskLevel: 'HIGH',
-          },
-          {
-            _id: 'rep-005',
-            reportId: 'INC-2026-005',
-            title: 'Unauthorized Entry into Nitrogen-Purged Reactor Vessel',
-            description: 'Contractor technician entered the top manway of Nitrogen-purged Reactor R-302 to retrieve a dropped wrench before obtaining Confined Space permit.',
-            site: 'Petrochemical Complex Gamma',
-            eventDate: '2026-02-10T08:20:00Z',
-            reportType: 'UNSAFE_ACT',
-            activity: 'Confined Space Entry',
-            hazard: 'Oxygen Deficient Atmosphere',
-            sifPotential: 'SIF_POTENTIAL',
-            confidence: 0.95,
-            riskScore: 92,
-            riskLevel: 'CRITICAL',
-          },
-          {
-            _id: 'rep-006',
-            reportId: 'INC-2026-006',
-            title: 'Trench Shoring Box Omission in Pipeline Excavation',
-            description: 'Trench inspection revealed 3.5m excavation wall without requisite shoring boxes on eastern flank following rain.',
-            site: 'Pipeline Sector 9',
-            eventDate: '2026-02-15T13:10:00Z',
-            reportType: 'UNSAFE_CONDITION',
-            activity: 'Excavation & Trenching',
-            hazard: 'Soil Collapse',
-            sifPotential: 'NEEDS_REVIEW',
-            confidence: 0.68,
-            riskScore: 54,
-            riskLevel: 'MEDIUM',
-          },
-        ];
-
-        // Apply client-side filter to mock data if needed
-        let filtered = mockReports;
-        if (filters.search) {
-          const q = filters.search.toLowerCase();
-          filtered = filtered.filter(
-            (r) =>
-              r.title.toLowerCase().includes(q) ||
-              r.description.toLowerCase().includes(q) ||
-              r.reportId.toLowerCase().includes(q)
-          );
-        }
-        if (filters.site) {
-          filtered = filtered.filter((r) => r.site === filters.site);
-        }
-        if (filters.sifStatus) {
-          filtered = filtered.filter((r) => r.sifPotential === filters.sifStatus);
-        }
-
-        setReports(filtered);
-        setPagination({
-          total: filtered.length,
-          page: 1,
-          limit: 10,
-          totalPages: Math.ceil(filtered.length / 10) || 1,
-        });
-      }
+      const reportsList = Array.isArray(res.reports) ? res.reports : Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
+      setReports(reportsList);
+      setPagination(res.pagination || { total: reportsList.length, page: filters.page, limit: 10, totalPages: Math.ceil(reportsList.length / 10) || 1 });
     } catch (err) {
-      setError(err.message || 'Failed to retrieve safety reports');
+      console.error('Failed to load reports from database:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to load safety reports from database');
+      setReports([]);
     } finally {
       setLoading(false);
     }

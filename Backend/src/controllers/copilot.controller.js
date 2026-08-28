@@ -5,7 +5,7 @@ import { AppError } from "../utils/appError.js";
 export const createSession = async (req, res, next) => {
   try {
     const session = await HseCopilotService.createSession({
-      userId: req.user?.id,
+      userId: req.user?._id || req.user?.id,
       initialQuery: req.body?.initialQuery,
       contextScope: req.body?.contextScope,
     });
@@ -17,7 +17,7 @@ export const createSession = async (req, res, next) => {
 
 export const getSessions = async (req, res, next) => {
   try {
-    const sessions = await HseCopilotService.getSessions(req.user?.id);
+    const sessions = await HseCopilotService.getSessions(req.user?._id || req.user?.id);
     return sendSuccess(res, sessions, "User copilot sessions retrieved", 200);
   } catch (error) {
     next(error);
@@ -26,7 +26,7 @@ export const getSessions = async (req, res, next) => {
 
 export const getSessionById = async (req, res, next) => {
   try {
-    const session = await HseCopilotService.getSessionById(req.params.sessionId, req.user?.id);
+    const session = await HseCopilotService.getSessionById(req.params.sessionId, req.user?._id || req.user?.id);
     return sendSuccess(res, session, `Copilot session ${req.params.sessionId}`, 200);
   } catch (error) {
     next(error);
@@ -35,7 +35,7 @@ export const getSessionById = async (req, res, next) => {
 
 export const deleteSession = async (req, res, next) => {
   try {
-    const result = await HseCopilotService.deleteSession(req.params.sessionId, req.user?.id);
+    const result = await HseCopilotService.deleteSession(req.params.sessionId, req.user?._id || req.user?.id);
     return sendSuccess(res, result, `Copilot session deleted`, 200);
   } catch (error) {
     next(error);
@@ -52,7 +52,7 @@ export const chat = async (req, res, next) => {
     const response = await HseCopilotService.chat({
       sessionId,
       query,
-      userId: req.user?.id,
+      userId: req.user?._id || req.user?.id,
     });
 
     return sendSuccess(res, response, "Grounded Copilot response generated", 200);

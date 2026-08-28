@@ -6,6 +6,19 @@ import { logger } from "../../utils/logger.js";
 
 export class AlertService {
   /**
+   * Check if MongoDB is connected; throw error if offline (Rule 20: No Silent Fallback).
+   */
+  static verifyDbConnection() {
+    if (mongoose.connection.readyState !== 1) {
+      throw new AppError(
+        "Database is offline or disconnected. Cannot process HSE alerts.",
+        503,
+        "DATABASE_DISCONNECTED"
+      );
+    }
+  }
+
+  /**
    * Evaluates a freshly analyzed safety report against alert trigger rules and creates deduplicated alerts.
    */
   static async evaluateReportAlerts(report, analysis) {
@@ -60,20 +73,27 @@ export class AlertService {
       generatedAlerts.push(alert);
     }
 
-    // Trigger Rule 3: High Risk Event Notice
-    if (isHighRisk && !isCriticalRisk && generatedAlerts.length === 0) {
-      const deduplicationKey = `HIGH_RISK:${site}:${precursors[0]?.type || "GENERAL"}`;
+    // Trigger Rule 3: SYSTEMIC_BARRIER_FAILURE
+    const failedCriticalBarriers =
+      analysis.nlpExtraction?.barriers?.filter(
+        (b) => (b.status === "FAILED" || b.status === "MISSING") && (b.category === "ENGINEERING" || b.category === "PPE")
+      ) || [];
+
+    if (failedCriticalBarriers.length > 0) {
+      const barrierName = failedCriticalBarriers[0].name;
+      const deduplicationKey = `BARRIER_FAIL:${barrierName}:${site}`;
       const alert = await AlertService.createOrUpdateAlert({
-        title: `High Risk Event Detected at ${site}`,
-        description: `High risk score (${analysis.riskScore.score}/100) calculated due to dominant factor: ${analysis.riskScore.dominantFactor}.`,
-        triggerType: "CRITICAL_SIF_EMERGENCE",
-        priority: "P2_HIGH",
+        title: `🛡️ Defense Barrier Breach: ${barrierName} at ${site}`,
+        description: `Critical physical or engineered defense barrier '${barrierName}' was detected in FAILED or MISSING state during work execution.`,
+        triggerType: "SYSTEMIC_BARRIER_FAILURE",
+        priority: isSif ? "P1_CRITICAL" : "P2_HIGH",
         sourceReportId: report.reportId,
         site,
         targetPrecursor: precursors[0]?.type || "",
         deduplicationKey,
         recommendedActions: [
-          { action: "Audit critical safety barrier compliance for task area", assignedRole: "HSE_OFFICER" },
+          { action: `Perform physical inspection and certification on ${barrierName}`, assignedRole: "HSE_OFFICER" },
+          { action: "Audit preventative maintenance logs for affected safety equipment", assignedRole: "REVIEWER" },
         ],
       });
       generatedAlerts.push(alert);
@@ -83,12 +103,10 @@ export class AlertService {
   }
 
   /**
-   * Helper to create or deduplicate alerts within a 24-hour suppression window.
+   * Helper to create or deduplicate alerts in MongoDB within a 24-hour suppression window.
    */
   static async createOrUpdateAlert(alertData) {
-    if (mongoose.connection.readyState !== 1) {
-      return { alertId: `ALT-${Date.now().toString().slice(-4)}`, ...alertData, status: "OPEN" };
-    }
+    AlertService.verifyDbConnection();
 
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -119,24 +137,10 @@ export class AlertService {
   }
 
   /**
-   * Retrieve alerts with optional filtering.
+   * Retrieve alerts with optional filtering from MongoDB.
    */
   static async getAlerts(filters = {}) {
-    if (mongoose.connection.readyState !== 1) {
-      return [
-        {
-          alertId: "ALT-2026-0001",
-          title: "🚨 P1 CRITICAL SIF EMERGENCE at Offshore Platform Alpha",
-          description: "Critical SIF Potential detected involving Working at Height with failed fall arrest.",
-          triggerType: "CRITICAL_SIF_EMERGENCE",
-          priority: "P1_CRITICAL",
-          status: "OPEN",
-          site: "Offshore Platform Alpha",
-          targetPrecursor: "WORKING_AT_HEIGHT",
-          createdAt: new Date(),
-        },
-      ];
-    }
+    AlertService.verifyDbConnection();
 
     const query = {};
     if (filters.priority) query.priority = filters.priority;
@@ -148,34 +152,23 @@ export class AlertService {
   }
 
   /**
-   * Retrieve single alert by ID.
+   * Retrieve single alert by ID from MongoDB.
    */
   static async getAlertById(alertId) {
-    if (mongoose.connection.readyState !== 1) {
-      return {
-        alertId,
-        title: "P1 CRITICAL SIF Alert",
-        priority: "P1_CRITICAL",
-        status: "OPEN",
-        site: "Site Alpha",
-        recommendedActions: [{ action: "Stop work authority", assignedRole: "HSE_OFFICER" }],
-      };
-    }
+    AlertService.verifyDbConnection();
 
     const alert = await Alert.findOne({ alertId });
     if (!alert) {
-      throw new AppError(`Alert '${alertId}' not found`, 404, "ALERT_NOT_FOUND");
+      throw new AppError(`Alert '${alertId}' not found in database`, 404, "ALERT_NOT_FOUND");
     }
     return alert;
   }
 
   /**
-   * Acknowledge alert.
+   * Acknowledge alert in MongoDB.
    */
   static async acknowledgeAlert(alertId, userId = null) {
-    if (mongoose.connection.readyState !== 1) {
-      return { alertId, status: "ACKNOWLEDGED", acknowledgedAt: new Date() };
-    }
+    AlertService.verifyDbConnection();
 
     const alert = await Alert.findOneAndUpdate(
       { alertId },
@@ -190,19 +183,17 @@ export class AlertService {
     );
 
     if (!alert) {
-      throw new AppError(`Alert '${alertId}' not found`, 404, "ALERT_NOT_FOUND");
+      throw new AppError(`Alert '${alertId}' not found in database`, 404, "ALERT_NOT_FOUND");
     }
 
     return alert;
   }
 
   /**
-   * Resolve alert with resolution notes.
+   * Resolve alert with resolution notes in MongoDB.
    */
   static async resolveAlert(alertId, resolutionNotes = "Action items completed", userId = null) {
-    if (mongoose.connection.readyState !== 1) {
-      return { alertId, status: "RESOLVED", resolutionNotes, resolvedAt: new Date() };
-    }
+    AlertService.verifyDbConnection();
 
     const alert = await Alert.findOneAndUpdate(
       { alertId },
@@ -218,19 +209,17 @@ export class AlertService {
     );
 
     if (!alert) {
-      throw new AppError(`Alert '${alertId}' not found`, 404, "ALERT_NOT_FOUND");
+      throw new AppError(`Alert '${alertId}' not found in database`, 404, "ALERT_NOT_FOUND");
     }
 
     return alert;
   }
 
   /**
-   * Dismiss alert.
+   * Dismiss alert in MongoDB.
    */
   static async dismissAlert(alertId, reason = "Dismissed by HSE Authority", userId = null) {
-    if (mongoose.connection.readyState !== 1) {
-      return { alertId, status: "DISMISSED", resolutionNotes: reason };
-    }
+    AlertService.verifyDbConnection();
 
     const alert = await Alert.findOneAndUpdate(
       { alertId },
@@ -246,25 +235,17 @@ export class AlertService {
     );
 
     if (!alert) {
-      throw new AppError(`Alert '${alertId}' not found`, 404, "ALERT_NOT_FOUND");
+      throw new AppError(`Alert '${alertId}' not found in database`, 404, "ALERT_NOT_FOUND");
     }
 
     return alert;
   }
 
   /**
-   * Retrieve alert summary statistics.
+   * Retrieve alert summary statistics from MongoDB.
    */
   static async getAlertStats() {
-    if (mongoose.connection.readyState !== 1) {
-      return {
-        totalOpen: 3,
-        p1Critical: 1,
-        p2High: 2,
-        acknowledged: 1,
-        resolved: 5,
-      };
-    }
+    AlertService.verifyDbConnection();
 
     const [totalOpen, p1Critical, p2High, acknowledged, resolved] = await Promise.all([
       Alert.countDocuments({ status: "OPEN" }),
