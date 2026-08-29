@@ -27,7 +27,7 @@ export const getGenerativeModel = (systemInstruction = "", options = {}) => {
   const responseMimeType = options.responseMimeType || (options.isText ? "text/plain" : "application/json");
 
   return client.getGenerativeModel({
-    model: options.model || (env.GEMINI_MODEL === "gemini-2.5-flash" ? "gemini-1.5-flash" : env.GEMINI_MODEL),
+    model: options.model || env.GEMINI_MODEL || "gemini-3.6-flash",
     systemInstruction: systemInstruction || undefined,
     generationConfig: {
       temperature: options.temperature !== undefined ? options.temperature : 0.1,

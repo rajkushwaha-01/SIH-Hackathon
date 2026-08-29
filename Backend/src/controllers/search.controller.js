@@ -8,7 +8,7 @@ export const semanticSearch = async (req, res, next) => {
   try {
     const query = req.body?.query || req.query?.query || req.query?.q;
     const topK = req.body?.topK || req.query?.topK || 5;
-    const minScore = req.body?.minScore || req.query?.minScore || 0.4;
+    const minScore = req.body?.minScore || req.query?.minScore || 0.2;
     const filters = req.body?.filters || {};
 
     if (!query || typeof query !== "string" || !query.trim()) {
@@ -19,7 +19,7 @@ export const semanticSearch = async (req, res, next) => {
       queryText: query,
       topK: Math.min(20, Math.max(1, parseInt(topK, 10) || 5)),
       filter: Object.keys(filters).length > 0 ? filters : null,
-      minScore: parseFloat(minScore) || 0.4,
+      minScore: parseFloat(minScore) || 0.2,
     });
 
     return sendSuccess(
@@ -40,7 +40,7 @@ export const semanticSearch = async (req, res, next) => {
 export const getSimilarReports = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { topK = 5, minScore = 0.4 } = req.query;
+    const { topK = 5, minScore = 0.2 } = req.query;
 
     let report = null;
     if (mongoose.connection.readyState === 1) {
@@ -53,12 +53,15 @@ export const getSimilarReports = async (req, res, next) => {
       throw new AppError(`Report '${id}' not found`, 404, "REPORT_NOT_FOUND");
     }
 
-    const queryText = report.originalContent || report.normalizedReport?.description || "";
+    const title = report.normalizedReport?.title || "";
+    const description = report.normalizedReport?.description || report.originalContent || "";
+    const queryText = (title ? `${title}: ${description}` : description).substring(0, 1000);
+
     const matches = await VectorSearchService.searchSimilar({
       queryText,
       topK: Math.min(20, Math.max(1, parseInt(topK, 10) || 5)),
       excludeReportId: report.reportId,
-      minScore: parseFloat(minScore) || 0.4,
+      minScore: parseFloat(minScore) || 0.2,
     });
 
     return sendSuccess(

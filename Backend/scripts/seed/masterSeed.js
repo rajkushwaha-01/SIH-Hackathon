@@ -294,19 +294,19 @@ export async function runMasterSeed() {
         report = new SafetyReport({
           reportId: inc.reportId,
           originalContent: inc.description,
-          sourceType: "RAW_TEXT",
+          sourceType: "TEXT",
           contentHash: "hash_" + inc.reportId,
           normalizedReport: {
+            reportType: "OBSERVATION",
             title: inc.title,
             description: inc.description,
             eventDate: inc.eventDate,
             site: inc.site,
-            reporterName: inc.reporterName,
-            activity: "Industrial Task",
-            severityRating: "HIGH",
+            location: "General Area",
+            activity: "Industrial Maintenance",
+            reporterRole: "Worker",
           },
-          ingestionStatus: "COMPLETED",
-          reviewStatus: "PENDING_REVIEW",
+          status: "INGESTED",
         });
         await report.save();
       }

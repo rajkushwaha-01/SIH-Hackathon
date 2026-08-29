@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { DocumentChunk } from "../../models/DocumentChunk.js";
+import { env } from "../../config/env.js";
 import { logger } from "../../utils/logger.js";
 
 export class ChunkingService {
@@ -80,7 +81,7 @@ export class ChunkingService {
         content: segmentText,
         tokenCount: ChunkingService.estimateTokenCount(segmentText),
         metadata,
-        embeddingModel: "text-embedding-004",
+        embeddingModel: env.EMBEDDING_MODEL || "gemini-embedding-001",
         embeddingDimension: 768,
         isIndexedInPinecone: false,
       });

@@ -65,7 +65,8 @@ export default function ReportDetailPage() {
       }
 
       if (similarRes.status === 'fulfilled' && similarRes.value) {
-        const matches = similarRes.value?.results || (Array.isArray(similarRes.value) ? similarRes.value : []);
+        const val = similarRes.value;
+        const matches = val?.similarIncidents || val?.data?.similarIncidents || val?.results || (Array.isArray(val) ? val : []);
         setSimilarCases(matches.slice(0, 3));
       } else {
         setSimilarCases([]);
@@ -379,11 +380,11 @@ export default function ReportDetailPage() {
               {similarCases.map((c, idx) => (
                 <EvidenceCard
                   key={idx}
-                  reportId={c.reportId}
-                  title={c.title}
-                  text={c.text}
-                  site={c.site}
-                  similarity={c.similarity}
+                  reportId={c.reportId || c.id}
+                  title={c.reportDetails?.title || c.title || c.reportId}
+                  text={c.textSnippet || c.text || c.description}
+                  site={c.reportDetails?.site || c.site}
+                  similarity={c.similarityScore || c.similarity || c.score}
                   riskScore={c.riskScore}
                   compact={true}
                 />

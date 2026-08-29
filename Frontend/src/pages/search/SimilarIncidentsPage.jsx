@@ -51,7 +51,7 @@ export default function SimilarIncidentsPage() {
   const navigate = useNavigate();
 
   const [query, setQuery] = useState('H2S toxic gas release during line breaking');
-  const [minThreshold, setMinThreshold] = useState(0.65);
+  const [minThreshold, setMinThreshold] = useState(0.4);
   const [selectedSite, setSelectedSite] = useState('All Sites');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -171,8 +171,8 @@ export default function SimilarIncidentsPage() {
               </span>
               <input
                 type="range"
-                min="0.5"
-                max="0.95"
+                min="0.2"
+                max="0.9"
                 step="0.05"
                 value={minThreshold}
                 onChange={(e) => setMinThreshold(parseFloat(e.target.value))}
@@ -214,8 +214,8 @@ export default function SimilarIncidentsPage() {
         <EmptyState
           title="No Matching Incidents Found"
           description="Try lowering the similarity threshold or adjust your query terms to discover broader historical precedents."
-          actionLabel="Reset Threshold to 50%"
-          onAction={() => setMinThreshold(0.5)}
+          actionLabel="Reset Threshold to 30%"
+          onAction={() => setMinThreshold(0.3)}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -223,13 +223,13 @@ export default function SimilarIncidentsPage() {
             <EvidenceCard
               key={idx}
               reportId={item.reportId || item.id}
-              title={item.title}
-              text={item.text || item.description}
-              site={item.site}
-              similarity={item.similarity || item.score}
+              title={item.reportDetails?.title || item.title || item.reportId}
+              text={item.textSnippet || item.text || item.description}
+              site={item.reportDetails?.site || item.site}
+              similarity={item.similarityScore || item.similarity || item.score}
               riskScore={item.riskScore}
               sifPotential={item.sifPotential}
-              factors={item.factors}
+              factors={item.matchingFactors || item.factors}
             />
           ))}
         </div>
