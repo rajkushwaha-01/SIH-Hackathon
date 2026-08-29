@@ -34,19 +34,17 @@ const allowedOrigins = env.CORS_ORIGIN
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests without an Origin header
-      // (Postman, server-to-server, health checks, etc.)
-      if (!origin) {
+      // Allow requests without an Origin header or if wildcard '*' is present
+      if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin)) {
+      // Allow localhost dev origins
+      if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
         return callback(null, true);
       }
 
-      return callback(
-        new Error(`CORS blocked request from origin: ${origin}`)
-      );
+      return callback(null, false);
     },
 
     methods: [

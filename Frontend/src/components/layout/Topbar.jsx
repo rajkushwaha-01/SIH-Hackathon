@@ -25,10 +25,10 @@ export default function Topbar({ onToggleSidebar, user = null, onLogout }) {
   };
 
   const currentUser = user || {
-    name: 'Lead HSE Officer',
-    email: 'hse.officer@safety.org',
-    role: 'HSE_OFFICER',
-    site: 'All Enterprise Sites',
+    name: '',
+    email: '',
+    role: '',
+    site: '',
   };
 
   return (

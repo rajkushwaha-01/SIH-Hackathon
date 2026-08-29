@@ -2,26 +2,40 @@ import apiClient from './api/client';
 
 export const authService = {
   login: async (credentials) => {
-    const res = await apiClient.post('/auth/login', credentials);
-    if (res.data?.token) {
-      localStorage.setItem('sih_auth_token', res.data.token);
-      localStorage.setItem('sih_user', JSON.stringify(res.data.user));
+    const response = await apiClient.post('/auth/login', credentials);
+    const { user, token } = response?.data || {};
+
+    if (token) {
+      localStorage.setItem('sih_auth_token', token);
     }
-    return res.data;
+    if (user) {
+      localStorage.setItem('sih_user', JSON.stringify(user));
+    }
+
+    return { user, token };
   },
 
   register: async (userData) => {
-    const res = await apiClient.post('/auth/register', userData);
-    if (res.data?.token) {
-      localStorage.setItem('sih_auth_token', res.data.token);
-      localStorage.setItem('sih_user', JSON.stringify(res.data.user));
+    const response = await apiClient.post('/auth/register', userData);
+    const { user, token } = response?.data || {};
+
+    if (token) {
+      localStorage.setItem('sih_auth_token', token);
     }
-    return res.data;
+    if (user) {
+      localStorage.setItem('sih_user', JSON.stringify(user));
+    }
+
+    return { user, token };
   },
 
   getMe: async () => {
-    const res = await apiClient.get('/auth/me');
-    return res.data;
+    const response = await apiClient.get('/auth/me');
+    const user = response?.data;
+    if (user) {
+      localStorage.setItem('sih_user', JSON.stringify(user));
+    }
+    return user;
   },
 
   logout: () => {
@@ -29,3 +43,6 @@ export const authService = {
     localStorage.removeItem('sih_user');
   },
 };
+
+export default authService;
+

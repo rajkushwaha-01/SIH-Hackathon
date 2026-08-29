@@ -3,50 +3,33 @@ import { authService } from '../services/auth';
 
 const AuthContext = createContext(null);
 
-export const DEFAULT_USER = {
-  name: 'Lead HSE Officer',
-  email: 'hse.officer@safety.org',
-  role: 'HSE_OFFICER',
-  site: 'Enterprise Command Center',
-};
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sih_user');
-      return saved ? JSON.parse(saved) : DEFAULT_USER;
-    } catch {
-      return DEFAULT_USER;
-    }
-  });
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Auto-authenticate with seeded HSE officer credentials if no token exists
   useEffect(() => {
     const initAuth = async () => {
+      setLoading(true);
       const token = localStorage.getItem('sih_auth_token');
       if (!token) {
-        try {
-          // Attempt silent auto-login for development and demonstration
-          const data = await authService.login({
-            email: 'hse.officer@safety.org',
-            password: 'OfficerPassword123!',
-          });
-          if (data?.user) {
-            setUser(data.user);
-          }
-        } catch {
-          // Fallback to local default profile
-          setUser(DEFAULT_USER);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const realUser = await authService.getMe();
+        if (realUser && (realUser._id || realUser.id || realUser.email)) {
+          setUser(realUser);
+        } else {
+          authService.logout();
+          setUser(null);
         }
-      } else {
-        try {
-          const profile = await authService.getMe();
-          if (profile) setUser(profile);
-        } catch {
-          // Token might be expired, clear and reset
-          localStorage.removeItem('sih_auth_token');
-        }
+      } catch (error) {
+        authService.logout();
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -56,9 +39,24 @@ export function AuthProvider({ children }) {
   const login = async (credentials) => {
     setLoading(true);
     try {
-      const data = await authService.login(credentials);
-      setUser(data.user);
-      return data;
+      const result = await authService.login(credentials);
+      if (result?.user) {
+        setUser(result.user);
+      }
+      return result;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (userData) => {
+    setLoading(true);
+    try {
+      const result = await authService.register(userData);
+      if (result?.user && result?.token) {
+        setUser(result.user);
+      }
+      return result;
     } finally {
       setLoading(false);
     }
@@ -66,11 +64,23 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     authService.logout();
-    setUser(DEFAULT_USER);
+    setUser(null);
   };
 
+  const isAuthenticated = Boolean(user);
+
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        setUser,
+        loading,
+        isAuthenticated,
+        login,
+        register,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -83,3 +93,5 @@ export function useAuth() {
   }
   return context;
 }
+
+

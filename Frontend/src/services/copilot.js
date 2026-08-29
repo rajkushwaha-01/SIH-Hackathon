@@ -22,4 +22,5 @@ const copilotService = {
   },
 };
 
+export { copilotService };
 export default copilotService;

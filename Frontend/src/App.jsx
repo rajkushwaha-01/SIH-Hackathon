@@ -1,8 +1,12 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './components/layout/AppLayout';
 import LoadingState from './components/common/LoadingState';
+
+// Lazy-loaded Authentication Pages
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
 
 // Lazy-loaded Application Pages for Optimal Performance & Code Splitting
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
@@ -23,6 +27,51 @@ const AuditTrailPage = lazy(() => import('./pages/audit/AuditTrailPage'));
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
 const NotFoundPage = lazy(() => import('./pages/common/NotFoundPage'));
 
+// ProtectedRoute component ensuring session validity and preserving location state
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-surface">
+        <LoadingState
+          message="Initializing Safety Intelligence Platform..."
+          subtext="Validating authentication session..."
+        />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+}
+
+// PublicOnlyRoute component ensuring logged-in users don't see login/register
+function PublicOnlyRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-surface">
+        <LoadingState
+          message="Initializing Safety Intelligence Platform..."
+          subtext="Validating authentication session..."
+        />
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
 function AppRoutes() {
   const { user, logout } = useAuth();
 
@@ -38,7 +87,32 @@ function AppRoutes() {
       }
     >
       <Routes>
-        <Route element={<AppLayout user={user} onLogout={logout} />}>
+        {/* Public Authentication Routes (Outside AppLayout) */}
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute>
+              <LoginPage />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicOnlyRoute>
+              <RegisterPage />
+            </PublicOnlyRoute>
+          }
+        />
+
+        {/* Protected Application Routes (Inside AppLayout) */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <AppLayout user={user} onLogout={logout} />
+            </ProtectedRoute>
+          }
+        >
           <Route path="/" element={<DashboardPage />} />
           <Route path="/reports" element={<ReportsListPage />} />
           <Route path="/reports/upload" element={<ReportUploadPage />} />
@@ -64,10 +138,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
   );
 }
+
+

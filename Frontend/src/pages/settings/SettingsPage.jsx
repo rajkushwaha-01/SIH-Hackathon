@@ -23,6 +23,7 @@ import {
   Modal,
 } from '../../components/common';
 import { cn } from '../../utils/cn';
+import { useAuth } from '../../context/AuthContext';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('THRESHOLDS');
@@ -37,10 +38,11 @@ export default function SettingsPage() {
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [digestTime, setDigestTime] = useState('08:00');
-  const [userName, setUserName] = useState('Raj Sharma');
-  const [userEmail, setUserEmail] = useState('hse.officer@safety.org');
-  const [userRole, setUserRole] = useState('Lead HSE Analyst');
-  const [primarySite, setPrimarySite] = useState('Offshore Platform Alpha');
+  const { user } = useAuth();
+  const [userName, setUserName] = useState(user?.name || '');
+  const [userEmail, setUserEmail] = useState(user?.email || '');
+  const [userRole, setUserRole] = useState(user?.role || '');
+  const [primarySite, setPrimarySite] = useState(user?.site || 'Offshore Platform Alpha');
 
   const handleSave = () => {
     setSaving(true);
