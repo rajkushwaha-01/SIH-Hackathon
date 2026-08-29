@@ -26,8 +26,14 @@ export class WhatIfSimulatorService {
     let baselineAnalysis = null;
 
     if (baseReportId && mongoose.connection.readyState === 1) {
-      baselineReport = await SafetyReport.findOne({ reportId: baseReportId });
-      baselineAnalysis = await Analysis.findOne({ reportId: baseReportId, isLatest: true });
+      const isObjectId = baseReportId.match(/^[0-9a-fA-F]{24}$/);
+      const query = isObjectId ? { $or: [{ _id: baseReportId }, { reportId: baseReportId }] } : { reportId: baseReportId };
+      baselineReport = await SafetyReport.findOne(query);
+      const canonicalId = baselineReport ? baselineReport.reportId : baseReportId;
+      baselineAnalysis = await Analysis.findOne({
+        $or: [{ reportId: canonicalId }, { reportId: baseReportId }],
+        isLatest: true,
+      });
     }
 
     // Baseline fallback structure if DB not connected or custom scenario

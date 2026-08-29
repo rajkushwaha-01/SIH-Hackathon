@@ -10,7 +10,9 @@ export class AnalysisQueue {
    * Enqueue a new analysis job for a safety report.
    */
   static async enqueueJob(reportId) {
-    const report = await SafetyReport.findOne({ reportId });
+    const isObjectId = reportId.match(/^[0-9a-fA-F]{24}$/);
+    const query = isObjectId ? { $or: [{ _id: reportId }, { reportId }] } : { reportId };
+    const report = await SafetyReport.findOne(query);
     if (!report) {
       throw new AppError(`Cannot analyze non-existent report '${reportId}'`, 404, "REPORT_NOT_FOUND");
     }

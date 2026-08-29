@@ -63,8 +63,14 @@ export class RagContextBuilder {
       let analysis = null;
 
       if (mongoose.connection.readyState === 1) {
-        report = await SafetyReport.findOne({ reportId: chunk.reportId });
-        analysis = await Analysis.findOne({ reportId: chunk.reportId, isLatest: true });
+        const isObjectId = chunk.reportId?.match?.(/^[0-9a-fA-F]{24}$/);
+        const query = isObjectId ? { $or: [{ _id: chunk.reportId }, { reportId: chunk.reportId }] } : { reportId: chunk.reportId };
+        report = await SafetyReport.findOne(query);
+        const canonicalId = report ? report.reportId : chunk.reportId;
+        analysis = await Analysis.findOne({
+          $or: [{ reportId: canonicalId }, { reportId: chunk.reportId }],
+          isLatest: true,
+        });
       }
 
       enrichedIncidents.push({

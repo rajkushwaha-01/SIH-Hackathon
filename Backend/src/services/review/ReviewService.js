@@ -27,15 +27,27 @@ export class ReviewService {
   static async getReportDetail(reportId) {
     ReviewService.verifyDbConnection();
 
-    const report = await SafetyReport.findOne({ reportId });
+    const isObjectId = reportId.match(/^[0-9a-fA-F]{24}$/);
+    const query = isObjectId ? { $or: [{ _id: reportId }, { reportId }] } : { reportId };
+    const report = await SafetyReport.findOne(query);
     if (!report) {
       throw new AppError(`Safety report '${reportId}' not found in database`, 404, "REPORT_NOT_FOUND");
     }
 
-    const latestAnalysis = await Analysis.findOne({ reportId, isLatest: true });
-    const versionHistory = await Analysis.find({ reportId }).sort({ version: -1 });
-    const auditTrail = await AuditTrail.find({ entityId: reportId }).sort({ createdAt: -1 });
-    const alerts = await Alert.find({ sourceReportId: reportId });
+    const canonicalReportId = report.reportId;
+    const latestAnalysis = await Analysis.findOne({
+      $or: [{ reportId: canonicalReportId }, { reportId }],
+      isLatest: true,
+    });
+    const versionHistory = await Analysis.find({
+      $or: [{ reportId: canonicalReportId }, { reportId }],
+    }).sort({ version: -1 });
+    const auditTrail = await AuditTrail.find({
+      entityId: { $in: [canonicalReportId, reportId, report._id.toString()] },
+    }).sort({ createdAt: -1 });
+    const alerts = await Alert.find({
+      sourceReportId: { $in: [canonicalReportId, reportId, report._id.toString()] },
+    });
 
     return {
       report,
@@ -71,12 +83,18 @@ export class ReviewService {
     ReviewService.verifyDbConnection();
     logger.info(`Processing HSE review for report ${reportId}: Decision = ${decision}`);
 
-    const report = await SafetyReport.findOne({ reportId });
+    const isObjectId = reportId.match(/^[0-9a-fA-F]{24}$/);
+    const query = isObjectId ? { $or: [{ _id: reportId }, { reportId }] } : { reportId };
+    const report = await SafetyReport.findOne(query);
     if (!report) {
       throw new AppError(`Safety report '${reportId}' not found`, 404, "REPORT_NOT_FOUND");
     }
 
-    const latestAnalysis = await Analysis.findOne({ reportId, isLatest: true });
+    const canonicalReportId = report.reportId;
+    const latestAnalysis = await Analysis.findOne({
+      $or: [{ reportId: canonicalReportId }, { reportId }],
+      isLatest: true,
+    });
     if (!latestAnalysis) {
       throw new AppError(`No active analysis found for report '${reportId}'`, 404, "ANALYSIS_NOT_FOUND");
     }
@@ -171,8 +189,8 @@ export class ReviewService {
 
       // 4. Create new versioned Analysis document
       newAnalysis = new Analysis({
-        analysisId: `ANA-${report.reportId}-${nextVersion}`,
-        reportId: report.reportId,
+        analysisId: `ANA-${canonicalReportId}-${nextVersion}`,
+        reportId: canonicalReportId,
         version: nextVersion,
         isLatest: true,
         nlpExtraction: updatedExtraction,
@@ -201,7 +219,7 @@ export class ReviewService {
     const auditEntry = new AuditTrail({
       auditId,
       entityType: "REPORT",
-      entityId: reportId,
+      entityId: canonicalReportId,
       action,
       performedBy: user?._id || user?.id,
       performedByName: user?.name || "HSE Review Officer",
@@ -224,7 +242,7 @@ export class ReviewService {
     await auditEntry.save();
 
     return {
-      reportId,
+      reportId: canonicalReportId,
       decision,
       reviewStatus: report.reviewStatus,
       activeVersion: newAnalysis.version,
@@ -238,7 +256,13 @@ export class ReviewService {
    */
   static async getAuditTrail(entityId) {
     ReviewService.verifyDbConnection();
-    return AuditTrail.find({ entityId }).sort({ createdAt: -1 });
+    const isObjectId = entityId.match(/^[0-9a-fA-F]{24}$/);
+    let canonicalId = entityId;
+    if (isObjectId) {
+      const report = await SafetyReport.findById(entityId);
+      if (report) canonicalId = report.reportId;
+    }
+    return AuditTrail.find({ entityId: { $in: [canonicalId, entityId] } }).sort({ createdAt: -1 });
   }
 }
 

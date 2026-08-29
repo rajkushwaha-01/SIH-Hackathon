@@ -16,7 +16,9 @@ export class ExtractionService {
    * deterministic risk scoring, and persist versioned intelligence.
    */
   static async extractAndPersist(reportId) {
-    const report = await SafetyReport.findOne({ reportId });
+    const isObjectId = reportId.match(/^[0-9a-fA-F]{24}$/);
+    const query = isObjectId ? { $or: [{ _id: reportId }, { reportId }] } : { reportId };
+    const report = await SafetyReport.findOne(query);
     if (!report) {
       throw new AppError(`Report '${reportId}' not found for NLP extraction`, 404, "REPORT_NOT_FOUND");
     }

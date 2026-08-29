@@ -1,5 +1,6 @@
 import { AnalysisQueue } from "../jobs/AnalysisQueue.js";
 import { Analysis } from "../models/Analysis.js";
+import { SafetyReport } from "../models/SafetyReport.js";
 import { ExtractionService } from "../services/nlp/ExtractionService.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { AppError } from "../utils/appError.js";
@@ -36,11 +37,21 @@ export const getJobStatus = async (req, res, next) => {
 
 export const getAnalysisByReportId = async (req, res, next) => {
   try {
-    const analysis = await Analysis.findOne({ reportId: req.params.reportId, isLatest: true })
-      .populate("evidenceIds");
+    const rawId = req.params.reportId || req.params.id;
+    const isObjectId = rawId?.match(/^[0-9a-fA-F]{24}$/);
+    let targetReportId = rawId;
+    if (isObjectId) {
+      const report = await SafetyReport.findOne({ $or: [{ _id: rawId }, { reportId: rawId }] });
+      if (report) targetReportId = report.reportId;
+    }
+
+    const analysis = await Analysis.findOne({
+      $or: [{ reportId: targetReportId }, { reportId: rawId }],
+      isLatest: true,
+    }).populate("evidenceIds");
 
     if (!analysis) {
-      throw new AppError(`No completed analysis found for report '${req.params.reportId}'`, 404, "ANALYSIS_NOT_FOUND");
+      throw new AppError(`No completed analysis found for report '${rawId}'`, 404, "ANALYSIS_NOT_FOUND");
     }
 
     return sendSuccess(res, analysis, "Analysis intelligence retrieved successfully", 200);

@@ -30,7 +30,15 @@ export class CausalGraphService {
     CausalGraphService.verifyDbConnection();
 
     const query = { isLatest: true };
-    if (reportId) query.reportId = reportId;
+    if (reportId) {
+      const isObjectId = reportId.match(/^[0-9a-fA-F]{24}$/);
+      let canonicalId = reportId;
+      if (isObjectId) {
+        const rep = await SafetyReport.findOne({ $or: [{ _id: reportId }, { reportId }] });
+        if (rep) canonicalId = rep.reportId;
+      }
+      query.$or = [{ reportId: canonicalId }, { reportId }];
+    }
 
     const analyses = await Analysis.find(query);
     if (!analyses || analyses.length === 0) {

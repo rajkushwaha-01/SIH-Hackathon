@@ -44,7 +44,9 @@ export const getSimilarReports = async (req, res, next) => {
 
     let report = null;
     if (mongoose.connection.readyState === 1) {
-      report = await SafetyReport.findOne({ reportId: id });
+      const isObjectId = id.match(/^[0-9a-fA-F]{24}$/);
+      const query = isObjectId ? { $or: [{ _id: id }, { reportId: id }] } : { reportId: id };
+      report = await SafetyReport.findOne(query);
     }
 
     if (!report) {

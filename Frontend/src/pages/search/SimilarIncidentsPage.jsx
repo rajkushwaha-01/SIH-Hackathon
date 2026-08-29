@@ -54,6 +54,7 @@ export default function SimilarIncidentsPage() {
   const [minThreshold, setMinThreshold] = useState(0.65);
   const [selectedSite, setSelectedSite] = useState('All Sites');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [results, setResults] = useState([]);
   const [searched, setSearched] = useState(false);
 
@@ -61,6 +62,7 @@ export default function SimilarIncidentsPage() {
     if (!queryString.trim()) return;
 
     setLoading(true);
+    setError(null);
     setSearched(true);
     try {
       const payload = {
