@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "build:frontend": "npm --prefix ../Frontend run build",
+    "build": "npm --prefix ../Frontend run build",
     "seed": "node scripts/seed/masterSeed.js",
     "seed:rules": "node scripts/seed/seedIOGPRules.js",
     "test": "vitest run",

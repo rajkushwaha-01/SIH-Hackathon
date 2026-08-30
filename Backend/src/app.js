@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import { env } from "./config/env.js";
 import { requestLogger } from "./middleware/requestLogger.middleware.js";
 import { apiLimiter } from "./middleware/rateLimiter.middleware.js";
@@ -97,6 +99,24 @@ app.use("/api/simulator", simulatorRoutes);
 app.use("/api/copilot", copilotRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/alerts", alertRoutes);
+
+// Static frontend serving for single-port deployment
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const frontendDistPath = path.resolve(__dirname, "../../Frontend/dist");
+
+app.use(express.static(frontendDistPath));
+
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api") || req.path.startsWith("/health")) {
+    return next();
+  }
+  res.sendFile(path.join(frontendDistPath, "index.html"), (err) => {
+    if (err) {
+      next();
+    }
+  });
+});
 
 // 404
 app.use(notFoundHandler);

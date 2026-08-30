@@ -1,0 +1,15 @@
+{
+  "name": "sih-sif-precursor-engine-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SIH Hackathon Full Stack Single-Port Deployment on Render",
+  "scripts": {
+    "install-all": "npm install --prefix Backend && npm install --prefix Frontend",
+    "build:frontend": "npm run install-all && npm --prefix Frontend run build",
+    "build": "npm run install-all && npm --prefix Frontend run build",
+    "start": "npm --prefix Backend start",
+    "dev:backend": "npm --prefix Backend dev",
+    "dev:frontend": "npm --prefix Frontend dev",
+    "seed": "npm --prefix Backend run seed"
+  }
+}
